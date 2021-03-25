@@ -40,5 +40,5 @@ Connecting to iProva is possible with a client_id and client_secret provided by 
     - [ ] update.ps1    
 
 2. Fill in the required fields on the 'Configuration' tab.
-
+3. Change the source for the e-mailaddress. Currently data from Gsuite is used.
 _For more information about our HelloID PowerShell connectors, please refer to our general [Documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-How-to-configure-a-custom-PowerShell-target-connector) page_
