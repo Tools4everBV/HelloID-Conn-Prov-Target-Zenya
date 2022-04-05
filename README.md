@@ -18,7 +18,7 @@
 
 
 ## Introduction
-Currently this connector can be used to create users in Infoland iProva through the available SCIM API. Currently only users are supported.
+Currently this connector can be used to create users in Infoland Zenya (formerly known as iProva) through the available SCIM API. Currently only users are supported.
 More information about supported API actions can be found on: https://identitymanagement.services.iprova.nl/swagger-ui/
 
 This example requires that the usernames in iProva are equal to the employeenumber of the user. This is done in combination with a single-sign-on solution
