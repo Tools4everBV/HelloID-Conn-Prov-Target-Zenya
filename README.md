@@ -3,8 +3,11 @@
 | :information_source: Information |
 |:---------------------------|
 | This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.       |
-
 <br />
+
+<p align="center">
+  <img src="https://user-images.githubusercontent.com/69046642/177937093-8bf6f838-5026-4d44-a3fb-1fdd1006fced.png">
+</p
 
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
