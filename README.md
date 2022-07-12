@@ -1,5 +1,3 @@
-# HelloID-Conn-Prov-Target-Zenya
-
 | :information_source: Information |
 |:---------------------------|
 | This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.       |
@@ -9,48 +7,76 @@
   <img src="https://user-images.githubusercontent.com/69046642/177937093-8bf6f838-5026-4d44-a3fb-1fdd1006fced.png">
 </p
 
+## Versioning
+| Version | Description | Date |
+| - | - | - |
+| 1.1.0   | Updated with new logging and added group management | 2022/07/12  |
+| 1.0.0   | Initial release | 2020/08/06  |
+
 <!-- TABLE OF CONTENTS -->
 ## Table of Contents
-* [Introduction](#introduction)
-* [Getting Started](#getting-started)
-  * [Source](#source)
-  * [Target](#target)
-  * [Mappings](#mappings)
-  * [Scope](#scope)
-* [Setup the PowerShell connector](#setup-the-powershell-connector)
-
+- [Versioning](#versioning)
+- [Table of Contents](#table-of-contents)
+- [Introduction](#introduction)
+- [Getting started](#getting-started)
+  - [Connection settings](#connection-settings)
+  - [Prerequisites](#prerequisites)
+  - [Remarks](#remarks)
+- [Getting help](#getting-help)
+- [HelloID docs](#helloid-docs)
 
 ## Introduction
-Currently this connector can be used to create users in Infoland Zenya (formerly known as iProva) through the available SCIM API. Currently only users are supported.
+_HelloID-Conn-Prov-Target-Zenya is a _target_ connector. Zenya (formerly known as iProva) provides a set of API's that allow you to programmatically interact with it's data. The Zenya API is a scim (http://www.simplecloud.info) API. The HelloID connector allows you to create and manage Zenya accounts. Using entitlements it is possible to add account to groups.
 More information about supported API actions can be found on: https://identitymanagement.services.iprova.nl/swagger-ui/
 
-This example requires that the usernames in Zenya are equal to the employeenumber of the user. This is done in combination with a single-sign-on solution
-where it does not really matter what the username of a user is since they do not have to enter it at all and it is not visible in Zenya.
-Also please keep in mind that after you have created and tested the connector Infoland has to set the current users in scope of the synchronisation, 
-if this is not done by Infoland every user will get a new account since accounts are connected to the connector.
+> Note that the SCIM API only allows us to manage groups we actually created. So we can only manage the groups we created through HelloID Resource Creation.
+The HelloID connector consists of the template scripts shown in the following table.
+
+> Also please keep in mind that after you have created and tested the connector Infoland has to set the current users in scope of the synchronisation, if this is not done by Infoland every user will get a new account since accounts are connected to the connector.
+
+> Since we user the SCIM API we cannot create/set the password of users, so SSO is required to manage the users using the SCIM API.
+
+The HelloID connector consists of the template scripts shown in the following table.
+
+| Action                          | Action(s) Performed                           | Comment   | 
+| ------------------------------- | --------------------------------------------- | --------- |
+| create.ps1                      | Correlate or create Zenya user                |           |
+| update.ps1                      | Update Zenya user                             |           |
+| enable.ps1                      | Enable Zenya user                             |           |
+| disable.ps1                     | Disable Zenya user                            |           |
+| delete.ps1                      | Delete Zenya user                             | Be careful when implementing this! There is no way to restore deleted users.  |
+| resourceCreation.groups.departments.ps1  | Create Zenya groups for all departments in HelloID  | This specific example uses the department objects as input. Please customize the script accordingly when using other input.  |
+| permissions.groups.ps1  | Query the groups in Zenya          | We can only query the groups in Zenya that HelloID has created. So creating the groups through Resource Creation is a requirement to manage the groups |
+| grantPermission.groups.ps1         | Grant a Zenya user to a Zenya group  | We can only update the groups in Zenya that HelloID has created. So creating the groups through Resource Creation is a requirement to manage the groups |
+| revokePermission.groups.ps1         | Revoke a Zenya user to a Zenya group  | We can only update the groups in Zenya that HelloID has created. So creating the groups through Resource Creation is a requirement to manage the groups |
 
 <!-- GETTING STARTED -->
-## Getting Started
+## Getting started
+### Connection settings
+The following settings are required to connect to the API.
 
-By using this connector you will have the ability to create, enable, disable, update and delete accounts from the Infoland enya system.
+| Setting               | Description                                                       | Mandatory   |
+| --------------------- | ----------------------------------------------------------------- | ----------- |
+| Service Address       | The Service Address of the SCIM API                               | Yes         |
+| Client ID             | The OAuth2 Client ID to connect to the SCIM API                   | Yes         |
+| Client Secret         | The OAuth2 Client Secret to connect to the SCIM API               | Yes         |
+| Toggle debug logging | When toggled, extra logging is shown. Note that this is only meant for debugging, please switch this off when in production. | No         |
 
-Connecting to Zenya is possible with a client_id and client_secret provided by Infoland
+### Prerequisites
+- Zenya environment
+- SSO for Zenya environment
+- Registered Provider in Zenya. Please see the Zenya Documentation (step 3) for the "How To": [Create Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1). The following values are needed to connect
+  - Service Address
+  - Client ID
+  - Client Secret
 
-<!-- USAGE EXAMPLES -->
-## Setup the PowerShell connector
+### Remarks
+ - We only manage the groups we created with HelloID (the registered provider in Zenya for HelloID).
 
-1. Add a new 'Target System' to HelloID and make sure to import all the necessary files.
+## Getting help
+> _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-Configure-a-custom-PowerShell-target-system) pages_
 
-    - [ ] configuration.json
-    - [ ] create.ps1
-    - [ ] enable.ps1
-    - [ ] disable.ps1
-    - [ ] update.ps1
-    - [ ] delete.ps1  
+> _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com)_
 
-2. Fill in the required fields on the 'Configuration' tab.
-
-_For more information about our HelloID PowerShell connectors, please refer to our general [Documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-How-to-configure-a-custom-PowerShell-target-connector) page_
-
-# HelloID Docs
+## HelloID docs
 The official HelloID documentation can be found at: https://docs.helloid.com/

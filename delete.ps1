@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-Disable
+# HelloID-Conn-Prov-Target-Zenya-Delete
 #
 # Version: 1.1.0
 #####################################################
@@ -29,9 +29,7 @@ $clientId = $c.clientId
 $clientSecret = $c.clientSecret
 
 # Account mapping
-$account = [PSCustomObject]@{
-    active = $False
-}
+
 
 # Troubleshooting
 # $aRef = @{
@@ -101,40 +99,29 @@ try {
     # Add an auditMessage showing what will happen during enforcement
     if ($dryRun -eq $true) {
         $auditLogs.Add([PSCustomObject]@{
-                Message = "Disable Zenya account [$($account.userName)], will be executed during enforcement"
+                Message = "Delete Zenya account [$($account.userName)], will be executed during enforcement"
             })
     }
 
     if (-not($dryRun -eq $true)) {
         $bodyUpdate = [PSCustomObject]@{
             id = $currentUser.id
-            operations = @(
-                @{
-                    op = "replace"
-                    path = "active"
-                    value = $account.active
-                }
-            )
         }
         $body = $bodyUpdate | ConvertTo-Json -Depth 10
 
-        Write-Verbose "Disabling Zenya account $($currentUser.userName) ($($currentUser.id))"
+        Write-Verbose "Deleting Zenya account $($currentUser.userName) ($($currentUser.id))"
         Write-Verbose "Body: $body"
         $splatWebRequest = @{
             Uri     = "$baseUrl/scim/users/$($currentUser.id)"
             Headers = $headers
-            Method  = 'PATCH'
+            Method  = 'DELETE'
             Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
         }
-        $updatedUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
-        $aRef = [PSCustomObject]@{
-            id       = $updatedUser.id
-            userName = $updatedUser.userName
-        }
+        $deletedUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
         $auditLogs.Add([PSCustomObject]@{
-                Action = "DisableAccount"
-                Message = "Disable account was successful for account $($aRef.userName) ($($aRef.id))"
+                Action = "DeleteAccount"
+                Message = "Delete account was successful for account $($aRef.userName) ($($aRef.id))"
                 IsError = $false
             })
         $success = $true
@@ -162,18 +149,18 @@ try {
         }else{
             $errorMessageDetail = $ex
         }
-    
-        $errorMessage = "Could not disable enya account $($aref.username) ($($aRef.id)). Error: $($errorMessageDetail)"
+        
+        $errorMessage = "Could not delete enya account $($aref.username) ($($aRef.id)). Error: $($errorMessageDetail)"
     }
     else {
-        $errorMessage = "Could not disable enya account $($aref.username) ($($aRef.id)). Error: $($ex.Exception.Message)"
+        $errorMessage = "Could not delete enya account $($aref.username) ($($aRef.id)). Error: $($ex.Exception.Message)"
     }
 
-    $verboseErrorMessage = "Could not disable Zenya account $($aref.username) ($($aRef.id)). Error at Line '$($_.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error message: $($ex)"
+    $verboseErrorMessage = "Could not delete Zenya account $($aref.username) ($($aRef.id)). Error at Line '$($_.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error message: $($ex)"
     Write-Verbose $verboseErrorMessage
   
     $auditLogs.Add([PSCustomObject]@{
-            Action = "DisableAccount"
+            Action = "DeleteAccount"
             Message = $errorMessage
             IsError = $true
         })
