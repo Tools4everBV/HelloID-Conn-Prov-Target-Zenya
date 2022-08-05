@@ -30,7 +30,6 @@ _HelloID-Conn-Prov-Target-Zenya is a _target_ connector. Zenya (formerly known a
 More information about supported API actions can be found on: https://identitymanagement.services.iprova.nl/swagger-ui/
 
 > Note that the SCIM API only allows us to manage groups we actually created. So we can only manage the groups we created through HelloID Resource Creation.
-The HelloID connector consists of the template scripts shown in the following table.
 
 > Also please keep in mind that after you have created and tested the connector Infoland has to set the current users in scope of the synchronisation, if this is not done by Infoland every user will get a new account since accounts are connected to the connector.
 
