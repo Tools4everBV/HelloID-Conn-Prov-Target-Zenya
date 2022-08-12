@@ -46,22 +46,22 @@ $account = [PSCustomObject]@{
 }
 
 # Troubleshooting
-$account = [PSCustomObject]@{
-    schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
-    externalId        = "99999999"
-    userName          = "TestHelloID@enyoi.onmicrosoft.com2"
-    displayname       = "Test HelloID"
-    preferredLanguage = "nl-NL"
-    active            = $False
-    emails            = @(
-        [PSCustomObject]@{
-            value   = "TestHelloID2@enyoi.onmicrosoft.com"
-            type    = "work"
-            primary = $True
-        }
-    )
-}
-$dryRun = $false
+# $account = [PSCustomObject]@{
+#     schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
+#     externalId        = "99999999"
+#     userName          = "TestHelloID@enyoi.onmicrosoft.com2"
+#     displayname       = "Test HelloID"
+#     preferredLanguage = "nl-NL"
+#     active            = $False
+#     emails            = @(
+#         [PSCustomObject]@{
+#             value   = "TestHelloID2@enyoi.onmicrosoft.com"
+#             type    = "work"
+#             primary = $True
+#         }
+#     )
+# }
+# $dryRun = $false
 
 #region functions
 function New-AuthorizationHeaders {
@@ -378,7 +378,7 @@ $result = [PSCustomObject]@{
     ExportData       = [PSCustomObject]@{
         id       = $aRef.id
         userName = $aRef.userName
-    }; 
+    } 
 }
 
 Write-Output $result | ConvertTo-Json -Depth 10
