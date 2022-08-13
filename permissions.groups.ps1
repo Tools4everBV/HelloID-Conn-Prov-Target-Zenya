@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Permissions-Groups
 #
-# Version: 1.1.0
+# Version: 1.1.1
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
@@ -42,10 +42,10 @@ function New-AuthorizationHeaders {
 
         $authorizationurl = "$baseUrl/oauth/token"
         $authorizationbody = @{
-            "grant_type" =  'client_credentials'
-            "client_id" =  $ClientId
-            "client_secret" = $ClientSecret
-            "token_expiration_disabled" =  $false
+            "grant_type"                = 'client_credentials'
+            "client_id"                 = $ClientId
+            "client_secret"             = $ClientSecret
+            "token_expiration_disabled" = $false
         } | ConvertTo-Json
         $AccessToken = Invoke-RestMethod -uri $authorizationurl -body $authorizationbody -Method Post -ContentType "application/json"
 
@@ -60,68 +60,83 @@ function New-AuthorizationHeaders {
         $PSCmdlet.ThrowTerminatingError($_)
     }
 }
+
+function Resolve-ZenyaErrorMessage {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        try {
+            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+
+            if ($null -ne $errorObjectConverted.detail) {
+                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
+                if ($null -ne $errorObjectDetail) {
+                    try {
+                        $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
+
+                        if ($null -ne $errorDetailConverted) {
+                            $errorMessage = $errorDetailConverted.title
+                        }
+                    }
+                    catch {
+                        $errorMessage = $errorObjectDetail
+                    }
+                }
+                else {
+                    $errorMessage = $errorObjectConverted.detail
+                }
+            }
+            else {
+                $errorMessage = $ErrorObject
+            }
+        }
+        catch {
+            $errorMessage = "$($ErrorObject.Exception.Message)"
+        }
+
+        Write-Output $errorMessage
+    }
+}
 #endregion functions
 
-
+# Get Zenya groups (that are created by HelloID)
 try {
-    # Get groups
     $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
 
-    Write-Verbose 'Retrieve Group list from Zenya'
+    Write-Verbose "Querying Zenya groups"
     $splatWebRequest = @{
         Uri     = "$baseUrl/scim/groups"
         Headers = $headers
         Method  = 'GET'
     }
-    $groupList = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
+    $groups = $null
+    $groups = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
 
-    Write-Information "Successfully retrieved Group list from Zenya. Result count: $($groupList.id.Count)"
+    Write-Information "Successfully queried Zenya groups. Result count: $($groups.id.Count)"
 }
 catch {
-    $success = $false
     $ex = $PSItem
-    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
-        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
-        $errorMessageDetail = $null
-        $errorObjectConverted = $ex | ConvertFrom-Json -ErrorAction SilentlyContinue
+    $verboseErrorMessage = $ex
+    Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
 
-        if($null -ne $errorObjectConverted.detail){
-            $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
-            if($null -ne $errorObjectDetail){
-                $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction SilentlyContinue
-                if($null -ne $errorDetailConverted){
-                    $errorMessageDetail = $errorDetailConverted.title
-                }else{
-                    $errorMessageDetail = $errorObjectDetail
-                }
-            }else{
-                $errorMessageDetail = $errorObjectConverted.detail
-            }
-        }else{
-            $errorMessageDetail = $ex
-        }
-
-        $errorMessage = "Could not retrieve Group list from Zenya. Error: $($errorMessageDetail)"
-    }
-    else {
-        $errorMessage = "Could not retrieve Group list from Zenya. Error: $($ex.Exception.Message)"
-    }
-
-    $verboseErrorMessage = "Could not retrieve Group list from Zenya. Error at Line '$($_.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error message: $($ex)"
-    Write-Verbose $verboseErrorMessage
-
-    throw $errorMessage
+    $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
+    throw "Error querying Zenya groups. Error Message: $auditErrorMessage"
 }
 
-foreach ($group in $groupList) {
+foreach ($group in $groups) {
     $returnObject = @{
-        DisplayName    = "Group - $($group.displayName)";
+        DisplayName    = "Group - $($group.displayName)"
         Identification = @{
             id   = $group.id
             Name = $group.displayName
             Type = "Group"
         }
-    };
+    }
 
     Write-Output $returnObject | ConvertTo-Json -Depth 10
 }

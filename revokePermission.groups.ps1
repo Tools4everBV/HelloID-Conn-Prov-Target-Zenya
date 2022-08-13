@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-RevokePermission-Group
 #
-# Version: 1.1.0
+# Version: 1.1.1
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
@@ -10,9 +10,12 @@ $aRef = $accountReference | ConvertFrom-Json
 
 # The permissionReference object contains the Identification object provided in the retrieve permissions call
 $pRef = $permissionReference | ConvertFrom-Json
-$success = $true
+$success = $true # Set to true at start, because only when an error occurs it is set to false
+$auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
 
-$auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -71,103 +74,161 @@ function New-AuthorizationHeaders {
         $PSCmdlet.ThrowTerminatingError($_)
     }
 }
+
+function Resolve-ZenyaErrorMessage {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        try {
+            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+
+            if ($null -ne $errorObjectConverted.detail) {
+                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
+                if ($null -ne $errorObjectDetail) {
+                    try {
+                        $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
+
+                        if ($null -ne $errorDetailConverted) {
+                            $errorMessage = $errorDetailConverted.title
+                        }
+                    }
+                    catch {
+                        $errorMessage = $errorObjectDetail
+                    }
+                }
+                else {
+                    $errorMessage = $errorObjectConverted.detail
+                }
+            }
+            else {
+                $errorMessage = $ErrorObject
+            }
+        }
+        catch {
+            $errorMessage = "$($ErrorObject.Exception.Message)"
+        }
+
+        Write-Output $errorMessage
+    }
+}
 #endregion Functions
 
-
-# The permissionReference contains the Identification object provided in the retrieve permissions call
+# Get current Zenya account
 try {
-    Write-Information "Revoking permission to $($pRef.Name) ($($pRef.id)) for $($aRef.userName) ($($aRef.id))"
+    if ($null -eq $aRef.id) {
+        throw "No Account Reference found in HelloID"
+    }
 
     $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
 
-    $group = [PSCustomObject]@{
-        schemas = "urn:ietf:params:scim:schemas:core:2.0:Group"
-        id      = $pRef.id
-        operations = @(
-            @{
-                op = "remove"
-                path = "members"
-                value = @(
-                    @{
-                        value = $aRef.id
-                        display = $aRef.userName
-                    }
-                )
-            }
-        )
-    }
-    $body = ($group | ConvertTo-Json -Depth 10)
-
+    Write-Verbose "Querying Zenya account with id $($aRef.id)"
     $splatWebRequest = @{
-        Uri     = "$baseUrl/scim/groups/$($pRef.id)"
+        Uri     = "$baseUrl/scim/users/$($aRef.id)"
         Headers = $headers
-        Method  = 'PATCH'
-        Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
+        Method  = 'GET'
     }
+    $currentUser = $null
+    $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
-    Write-Verbose "Uri: $($splatWebRequest.Uri)"
-    Write-Verbose "Body: $($splatWebRequest.Body)"
-
-    if (-Not($dryRun -eq $true)) {
-        # No error when user no longer a member
-        $removeMembership = Invoke-RestMethod @splatWebRequest -Verbose:$false
-        Write-Information "Successfully revoked permission to Group $($pRef.Name) ($($pRef.id)) for $($aRef.userName) ($($aRef.id))"
+    if ($null -eq $currentUser.id) {
+        throw "No User found in Zenya with id $($aRef.id)"
     }
-
-    $success = $true
-    $auditLogs.Add([PSCustomObject]@{
-            Action  = "RevokePermission"
-            Message = "Successfully revoked permission to Group $($pRef.Name) ($($pRef.id)) for $($aRef.userName) ($($aRef.id))"
-            IsError = $false
-        }
-    )     
 }
 catch {
-    $success = $false
     $ex = $PSItem
-    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
-        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
-        $errorMessageDetail = $null
-        $errorObjectConverted = $ex | ConvertFrom-Json -ErrorAction SilentlyContinue
+    $verboseErrorMessage = $ex
+    Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
 
-        if($null -ne $errorObjectConverted.detail){
-            $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
-            if($null -ne $errorObjectDetail){
-                $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction SilentlyContinue
-                if($null -ne $errorDetailConverted){
-                    $errorMessageDetail = $errorDetailConverted.title
-                }else{
-                    $errorMessageDetail = $errorObjectDetail
-                }
-            }else{
-                $errorMessageDetail = $errorObjectConverted.detail
-            }
-        }else{
-            $errorMessageDetail = $ex
+    $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
+    if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*") {
+        if (-Not($dryRun -eq $True)) {
+            $auditLogs.Add([PSCustomObject]@{
+                    Action  = "RevokePermission"
+                    Message = "No Zenya account found with id $($aRef.id). Possibly already deleted, skipping action."
+                    IsError = $false
+                })
         }
-
-        $errorMessage = "Could not create revoke $($aRef.userName) ($($aRef.id)) permission to Group $($pRef.Name) ($($pRef.id)). Error: $($errorMessageDetail)"
+        else {
+            Write-Warning "DryRun: No Zenya account found with id $($aRef.id). Possibly already deleted, skipping action."
+        }        
     }
     else {
-        $errorMessage = "Could not create revoke $($aRef.userName) ($($aRef.id)) permission to Group $($pRef.Name) ($($pRef.id)). Error: $($ex.Exception.Message)"
+        $success = $false  
+        $auditLogs.Add([PSCustomObject]@{
+                Action  = "RevokePermission"
+                Message = "Error querying Zenya account with id $($aRef.id). Error Message: $auditErrorMessage"
+                IsError = $True
+            })
     }
-
-    $verboseErrorMessage = "Could not create revoke $($aRef.userName) ($($aRef.id)) permission to Group $($pRef.Name) ($($pRef.id)). Error at Line '$($_.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error message: $($ex)"
-    Write-Verbose $verboseErrorMessage
-
-    $auditLogs.Add([PSCustomObject]@{
-        Message = $errorMessage
-        Action  = "RevokePermission"
-        IsError = $true
-    })
 }
 
-#build up result
+# Revoke permission Zenya group for Zenya account
+if ($null -ne $currentUser.id) {
+    try {
+        Write-Verbose "Revoking permission to $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id))"
+
+        $bodyGroupAddMember = [PSCustomObject]@{
+            schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
+            id         = $pRef.id
+            operations = @(
+                @{
+                    op    = "add"
+                    path  = "members"
+                    value = @(
+                        @{
+                            value   = $currentUser.id
+                            display = $currentUser.userName
+                        }
+                    )
+                }
+            )
+        }
+        $body = ($bodyGroupAddMember | ConvertTo-Json -Depth 10)
+
+        $splatWebRequest = @{
+            Uri     = "$baseUrl/scim/groups/$($pRef.id)"
+            Headers = $headers
+            Method  = 'PATCH'
+            Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
+        }
+        if (-not($dryRun -eq $true)) {
+            $addGroupMember = Invoke-RestMethod @splatWebRequest -Verbose:$false
+            $auditLogs.Add([PSCustomObject]@{
+                    Action  = "RevokePermission"
+                    Message = "Successfully revoked permission to Group $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id))"
+                    IsError = $false
+                })
+        }
+        else {
+            Write-Warning "DryRun: Would revoke permission to $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id))"
+        }
+    }
+    catch {
+        $ex = $PSItem
+        $verboseErrorMessage = $ex
+        Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
+        
+        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
+        
+        $success = $false  
+        $auditLogs.Add([PSCustomObject]@{
+                Action  = "RevokePermission"
+                Message = "Error revoking permission to Group $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id)). Error Message: $auditErrorMessage"
+                IsError = $True
+            })
+    }
+}
+
+# Send results
 $result = [PSCustomObject]@{
     Success          = $success
     AccountReference = $aRef
     AuditLogs        = $auditLogs
     Account          = $account
 }
-
 Write-Output $result | ConvertTo-Json -Depth 10
