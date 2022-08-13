@@ -1,33 +1,43 @@
 [
-  {
-    "key": "url",
-    "type": "input",
-    "defaultValue": "",
-    "templateOptions": {
-      "label": "iProva URL",
-      "placeholder": "Please the iProva URL",
-      "required": true
+    {
+        "key": "serviceAddress",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "Service Address",
+            "placeholder": "The Service Address of the SCIM endpoint",
+            "required": true
+        }
+    },
+    {
+        "key": "clientId",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "Client ID",
+            "placeholder": "The Client ID of the Provider for External User Management in Zenya",
+            "required": true
+        }
+    },
+    {
+        "key": "clientSecret",
+        "type": "input",
+        "defaultValue": "",
+        "templateOptions": {
+            "label": "Client Secret",
+            "type": "password",
+            "placeholder": "The Client Secret of the Provider for External User Management in Zenya",
+            "required": true
+        }
+    },
+    {
+        "key": "isDebug",
+        "type": "checkbox",
+        "defaultValue": false,
+        "templateOptions": {
+            "label": "Toggle debug logging",
+            "description": "When toggled, debug logging will be displayed",
+            "required": false
+        }
     }
-  },
-  {
-    "key": "clientid",
-    "type": "input",
-    "defaultValue": "",
-    "templateOptions": {
-      "label": "Client ID",
-      "placeholder": "Please enter the clientID",
-      "required": true
-    }
-  },
-  {
-    "key": "clientsecret",
-    "type": "input",
-    "defaultValue": "",
-    "templateOptions": {
-      "label": "Client Secret",
-      "type": "password",
-      "placeholder": "Please the client secret",
-      "required": false
-    }
-  }
 ]
