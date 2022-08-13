@@ -1,16 +1,19 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-ResourceCreation-Groups-Departments
 #
-# Version: 1.1.0
+# Version: 1.1.1
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
 
 # The resourceData used in this default script uses resources based on Title
 $rRef = $resourceContext | ConvertFrom-Json
-$success = $true
-
+$success = $true # Set to true at start, because only when an error occurs it is set to false
 $auditLogs = [Collections.Generic.List[PSCustomObject]]::new()
+
+$VerbosePreference = "SilentlyContinue"
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
 
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -69,6 +72,48 @@ function New-AuthorizationHeaders {
         $PSCmdlet.ThrowTerminatingError($_)
     }
 }
+
+function Resolve-ZenyaErrorMessage {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        try {
+            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+
+            if ($null -ne $errorObjectConverted.detail) {
+                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
+                if ($null -ne $errorObjectDetail) {
+                    try {
+                        $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
+
+                        if ($null -ne $errorDetailConverted) {
+                            $errorMessage = $errorDetailConverted.title
+                        }
+                    }
+                    catch {
+                        $errorMessage = $errorObjectDetail
+                    }
+                }
+                else {
+                    $errorMessage = $errorObjectConverted.detail
+                }
+            }
+            else {
+                $errorMessage = $ErrorObject
+            }
+        }
+        catch {
+            $errorMessage = "$($ErrorObject.Exception.Message)"
+        }
+
+        Write-Output $errorMessage
+    }
+}
 #endregion Functions
 
 # In preview only the first 10 items of the SourceData are used
@@ -104,7 +149,7 @@ foreach ($resource in $rRef.SourceData) {
         if ($groupExists -eq $False) {
             <# Resource creation preview uses a timeout of 30 seconds
             while actual run has timeout of 10 minutes #>
-            Write-Information "Creating $($group.display_name)"
+            Write-Verbose "Creating Zenya group with displayname $($group.display_name)"
 
             if (-Not($dryRun -eq $True)) {
                 $body = ($group | ConvertTo-Json -Depth 10)
@@ -117,62 +162,44 @@ foreach ($resource in $rRef.SourceData) {
 
                 $createdGroup = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
-                $success = $True
                 $auditLogs.Add([PSCustomObject]@{
                         Message = "Successfully created group $($createdGroup.displayName) ($($createdGroup.Id))"
                         Action  = "CreateResource"
                         IsError = $false
                     })
             }
+            else {
+                Write-Warning "DryRun: Would create Zenya group with displayname $($group.display_name)"
+            }
         }
         else {
-            if ($debug -eq $true) { Write-Warning "Group $($group.display_name) already exists" }
-            $success = $True
-            $auditLogs.Add([PSCustomObject]@{
-                    Message = "Skipped group $($group.display_name)"
-                    Action  = "CreateResource"
-                    IsError = $false
-                })
+            Write-Verbose "Skipping creating Zenya group with displayname $($group.display_name) already exists"
+
+            if (-Not($dryRun -eq $True)) {
+                $success = $True
+                $auditLogs.Add([PSCustomObject]@{
+                        Message = "Skipped creating group Zenya group with displayname $($group.display_name) (already exists)"
+                        Action  = "CreateResource"
+                        IsError = $false
+                    })
+            }
+            else {
+                Write-Warning "DryRun: Would skip creating Zenya group with displayname $($group.display_name)  (already exists)"
+            }
         }
-        
     }
     catch {
-        $success = $false
         $ex = $PSItem
-        if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
-            $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
-            $errorMessageDetail = $null
-            $errorObjectConverted = $ex | ConvertFrom-Json -ErrorAction SilentlyContinue
-    
-            if($null -ne $errorObjectConverted.detail){
-                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
-                if($null -ne $errorObjectDetail){
-                    $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction SilentlyContinue
-                    if($null -ne $errorDetailConverted){
-                        $errorMessageDetail = $errorDetailConverted.title
-                    }else{
-                        $errorMessageDetail = $errorObjectDetail
-                    }
-                }else{
-                    $errorMessageDetail = $errorObjectConverted.detail
-                }
-            }else{
-                $errorMessageDetail = $ex
-            }
-
-            $errorMessage = "Could not create Zenya group $($group.display_name). Error: $($errorMessageDetail)"
-        }
-        else {
-            $errorMessage = "Could not create Zenya group $($group.display_name). Error: $($ex.Exception.Message)"
-        }
-    
-        $verboseErrorMessage = "Could not create Zenya group $($group.display_name). Error at Line '$($_.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error message: $($ex)"
-        Write-Verbose $verboseErrorMessage
-      
+        $verboseErrorMessage = $ex
+        Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
+        
+        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
+        
+        $success = $false  
         $auditLogs.Add([PSCustomObject]@{
-                Message = $errorMessage
                 Action  = "CreateResource"
-                IsError = $true
+                Message = "Error creating Zenya group with displayname $($group.display_name). Error Message: $auditErrorMessage"
+                IsError = $True
             })
     }
 }

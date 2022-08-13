@@ -143,7 +143,6 @@ function Resolve-ZenyaErrorMessage {
 }
 #endregion functions
 
-# Begin
 # Get current Zenya account and verify if a user must be either [created], [updated and correlated] or just [correlated]
 try {
     $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
@@ -201,15 +200,7 @@ catch {
         })
 }
 
-# Add an auditMessage showing what will happen during enforcement
-if ($dryRun -eq $true) {
-    $auditLogs.Add([PSCustomObject]@{
-            Message = "$action Zenya account [$($account.userName)], will be executed during enforcement"
-        })
-}
-
-# Process
-# Get current Zenya account and verify if a user must be either [created], [updated and correlated] or just [correlated]
+# either created, update and correlate or just correlate Zenya account 
 switch ($action) {
     'Create' {
         try {
@@ -367,7 +358,7 @@ switch ($action) {
     }
 }
 
-# finally {
+# Send results
 $result = [PSCustomObject]@{
     Success          = $success
     AccountReference = $aRef

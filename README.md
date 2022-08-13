@@ -10,6 +10,7 @@
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
+| 1.1.1   | Updated with new logging | 2022/08/13  |
 | 1.1.0   | Updated with new logging and added group management | 2022/07/12  |
 | 1.0.0   | Initial release | 2020/08/06  |
 
@@ -71,6 +72,7 @@ The following settings are required to connect to the API.
 
 ### Remarks
  - We only manage the groups we created with HelloID (the registered provider in Zenya for HelloID).
+ - > Note that HelloID can __only create groups__. The groups will __not be deleted by HelloID__.
 
 ## Getting help
 > _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-Configure-a-custom-PowerShell-target-system) pages_

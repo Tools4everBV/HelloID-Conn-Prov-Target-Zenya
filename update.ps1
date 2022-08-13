@@ -153,12 +153,13 @@ try {
 
     $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
 
-    Write-Verbose "Querying Zenya account wwith id $($aRef.id)"
+    Write-Verbose "Querying Zenya account with id $($aRef.id)"
     $splatWebRequest = @{
         Uri     = "$baseUrl/scim/users/$($aRef.id)"
         Headers = $headers
         Method  = 'GET'
     }
+    $currentUser = $null
     $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
     if ($null -eq $currentUser.id) {
@@ -186,12 +187,13 @@ catch {
     Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
 
     $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
-    if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*") {
+    if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*" -or $auditErrorMessage -Like "*User not found*") {
         if (-Not($dryRun -eq $True)) {
+            $success = $false
             $auditLogs.Add([PSCustomObject]@{
                     Action  = "UpdateAccount"
                     Message = "No Zenya account found with id $($aRef.id). Possibly deleted."
-                    IsError = $false
+                    IsError = $true
                 })
         }
         else {
@@ -208,6 +210,7 @@ catch {
     }
 }
 
+# Update Zenya account
 if ($null -ne $currentUser.id) {
     switch ($updateAction) {
         'Update' {
@@ -300,6 +303,7 @@ if ($null -ne $currentUser.id) {
     }
 }
 
+# Send results
 $result = [PSCustomObject]@{
     Success    = $success
     Account    = $account

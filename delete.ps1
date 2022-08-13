@@ -36,7 +36,7 @@ $account = [PSCustomObject]@{
 # Troubleshooting
 # $aRef = @{
 #     userName = "TestHelloID@enyoi.onmicrosoft.com"
-#     id       = "64e1c737-0274-4ba6-ae12-201edbe77d99"
+#     id       = "001b37be-d460-4ac1-8657-be29648a4d88"
 # }
 # $dryRun = $false
 
@@ -128,12 +128,13 @@ try {
 
     $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
 
-    Write-Verbose "Querying Zenya account wwith id $($aRef.id)"
+    Write-Verbose "Querying Zenya account with id $($aRef.id)"
     $splatWebRequest = @{
         Uri     = "$baseUrl/scim/users/$($aRef.id)"
         Headers = $headers
         Method  = 'GET'
     }
+    $currentUser = $null
     $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
     if ($null -eq $currentUser.id) {
@@ -146,7 +147,7 @@ catch {
     Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
 
     $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
-    if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*") {
+    if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*" -or $auditErrorMessage -Like "*User not found*") {
         if (-Not($dryRun -eq $True)) {
             $auditLogs.Add([PSCustomObject]@{
                     Action  = "DeleteAccount"
@@ -168,6 +169,7 @@ catch {
     }
 }
 
+# Delete Zenya account
 if ($null -ne $currentUser.id) {
     try {
         Write-Verbose "Deleting Zenya account $($currentUser.userName) ($($currentUser.id))"
@@ -212,6 +214,7 @@ if ($null -ne $currentUser.id) {
     }
 }
 
+# Send results
 $result = [PSCustomObject]@{
     Success    = $success
     Account    = $account
