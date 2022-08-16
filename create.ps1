@@ -37,27 +37,29 @@ $account = [PSCustomObject]@{
     userName          = $p.Accounts.MicrosoftActiveDirectory.UserPrincipalName
     displayname       = $p.Accounts.MicrosoftActiveDirectory.DisplayName
     preferredLanguage = "nl-NL"
-    active            = $False
-    emails            = [PSCustomObject]@{
-        value   = $p.Accounts.MicrosoftActiveDirectory.mail
-        type    = "work"
-        primary = $True
-    }
+    active            = $false
+    emails            = @(
+            [PSCustomObject]@{
+            value   = $p.Accounts.MicrosoftActiveDirectory.mail
+            type    = "work"
+            primary = $true
+        }
+    )
 }
 
 # Troubleshooting
 # $account = [PSCustomObject]@{
 #     schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
 #     externalId        = "99999999"
-#     userName          = "TestHelloID@enyoi.onmicrosoft.com2"
+#     userName          = "TestHelloID@enyoi.onmicrosoft.com"
 #     displayname       = "Test HelloID"
 #     preferredLanguage = "nl-NL"
-#     active            = $False
+#     active            = $false
 #     emails            = @(
 #         [PSCustomObject]@{
-#             value   = "TestHelloID2@enyoi.onmicrosoft.com"
+#             value   = "T.HelloID@enyoi.onmicrosoft.com"
 #             type    = "work"
-#             primary = $True
+#             primary = $true
 #         }
 #     )
 # }
@@ -329,16 +331,21 @@ switch ($action) {
             'NoChanges' {
                 Write-Verbose "No changes to Zenya account $($currentUser.userName) ($($currentUser.id))"
 
-                $aRef = [PSCustomObject]@{
-                    id       = $currentUser.id
-                    userName = $currentUser.userName
-                }
+                if (-not($dryRun -eq $true)) {
+                    $aRef = [PSCustomObject]@{
+                        id       = $currentUser.id
+                        userName = $currentUser.userName
+                    }
 
-                $auditLogs.Add([PSCustomObject]@{
-                        Action  = "CreateAccount"
-                        Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) (No Changes needed)"
-                        IsError = $false
-                    })
+                    $auditLogs.Add([PSCustomObject]@{
+                            Action  = "CreateAccount"
+                            Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) (No Changes needed)"
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: No changes to Zenya account $($currentUser.userName) ($($currentUser.id))"
+                }
                 break
             }
         }
@@ -350,9 +357,20 @@ switch ($action) {
             throw "The user account [$($currentUser.userName) exists in Zenya, but does not have a unique identifier [id]"
         }
 
-        $aRef = [PSCustomObject]@{
-            id       = $currentUser.id
-            userName = $currentUser.userName
+        if (-not($dryRun -eq $true)) {
+            $aRef = [PSCustomObject]@{
+                id       = $currentUser.id
+                userName = $currentUser.userName
+            }
+
+            $auditLogs.Add([PSCustomObject]@{
+                    Action  = "CreateAccount"
+                    Message = "Successfully correlated Zenya account $($currentUser.userName) ($($currentUser.id))"
+                    IsError = $false
+                })
+        }
+        else {
+            Write-Warning "DryRun: Would correlate Zenya account $($currentUser.userName) ($($currentUser.id))"
         }
         break
     }

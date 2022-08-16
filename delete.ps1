@@ -29,14 +29,11 @@ $clientId = $c.clientId
 $clientSecret = $c.clientSecret
 
 # Account mapping
-$account = [PSCustomObject]@{
-    active = $True
-}
 
 # Troubleshooting
 # $aRef = @{
-#     userName = "TestHelloID@enyoi.onmicrosoft.com"
-#     id       = "001b37be-d460-4ac1-8657-be29648a4d88"
+#    userName = "TestHelloID@enyoi.onmicrosoft.com"
+#    id       = "64e1c737-0274-4ba6-ae12-201edbe77d99"
 # }
 # $dryRun = $false
 

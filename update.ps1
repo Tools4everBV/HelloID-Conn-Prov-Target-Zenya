@@ -35,18 +35,19 @@ $account = [PSCustomObject]@{
     userName          = $p.Accounts.MicrosoftActiveDirectory.UserPrincipalName
     displayname       = $p.Accounts.MicrosoftActiveDirectory.DisplayName
     preferredLanguage = "nl-NL"
-    active            = $False
-    emails            = [PSCustomObject]@{
-        value   = $p.Accounts.MicrosoftActiveDirectory.mail
-        type    = "work"
-        primary = $True
-    }
+    emails            = @(
+            [PSCustomObject]@{
+            value   = $p.Accounts.MicrosoftActiveDirectory.mail
+            type    = "work"
+            primary = $true
+        }
+    )
 }
 
 # Troubleshooting
 # $aRef = @{
-#     userName = "TestHelloID@enyoi.onmicrosoft.com"
-#     id       = "64e1c737-0274-4ba6-ae12-201edbe77d99"
+#    userName = "TestHelloID@enyoi.onmicrosoft.com"
+#    id       = "64e1c737-0274-4ba6-ae12-201edbe77d99"
 # }
 # $account = [PSCustomObject]@{
 #     schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
@@ -54,12 +55,11 @@ $account = [PSCustomObject]@{
 #     userName          = "TestHelloID@enyoi.onmicrosoft.com"
 #     displayname       = "Test HelloID"
 #     preferredLanguage = "nl-NL"
-#     active            = $False
 #     emails            = @(
 #         [PSCustomObject]@{
-#             value   = "TestHelloID@enyoi.onmicrosoft.com"
+#             value   = "T.HelloID@enyoi.onmicrosoft.com"
 #             type    = "work"
-#             primary = $True
+#             primary = $true
 #         }
 #     )
 # }
@@ -288,16 +288,21 @@ if ($null -ne $currentUser.id) {
         'NoChanges' {
             Write-Verbose "No changes to Zenya account $($currentUser.userName) ($($currentUser.id))"
 
-            $aRef = [PSCustomObject]@{
-                id       = $currentUser.id
-                userName = $currentUser.userName
-            }
+            if (-not($dryRun -eq $true)) {
+                $aRef = [PSCustomObject]@{
+                    id       = $currentUser.id
+                    userName = $currentUser.userName
+                }
 
-            $auditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
-                    Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) (No Changes needed)"
-                    IsError = $false
-                })
+                $auditLogs.Add([PSCustomObject]@{
+                        Action  = "UpdateAccount"
+                        Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) (No Changes needed)"
+                        IsError = $false
+                    })
+            }
+            else {
+                Write-Warning "DryRun: No changes to Zenya account $($currentUser.userName) ($($currentUser.id))"
+            }
             break
         }
     }
