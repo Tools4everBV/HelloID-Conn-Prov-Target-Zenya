@@ -235,7 +235,7 @@ $result = [PSCustomObject]@{
     # Optionally return data for use in other systems
     ExportData = [PSCustomObject]@{
         id       = $aRef.id
-        username = $aRef.username
+        userName = $aRef.userName
     }
 } 
 Write-Output $result | ConvertTo-Json -Depth 10
