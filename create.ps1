@@ -1,5 +1,3 @@
-$configuration = '{ "serviceAddress": "https://identitymanagement.services.iprova.nl/", "clientId": "de0b5d37-ab01-4e28-afca-111767d7e7e6", "clientSecret": "cb17a7b2-bccd-4d76-b259-245efd50005c", "isDebug": true }'
-
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Create
 #
