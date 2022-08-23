@@ -160,10 +160,10 @@ try {
         Headers = $headers
         Method  = 'GET'
     }
-    $currentUser = $null
-    $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
+    $currentAccount = $null
+    $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
-    if ($null -eq $currentUser.id) {
+    if ($null -eq $currentAccount.id) {
         throw "No User found in Zenya with id $($aRef.id)"
     }
 }
@@ -210,9 +210,9 @@ catch {
 }
 
 # Revoke permission Zenya group for Zenya account
-if ($null -ne $currentUser.id) {
+if ($null -ne $currentAccount.id) {
     try {
-        Write-Verbose "Revoking permission to $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id))"
+        Write-Verbose "Revoking permission to $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id))"
 
         $bodyGroupAddMember = [PSCustomObject]@{
             schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
@@ -223,8 +223,8 @@ if ($null -ne $currentUser.id) {
                     path  = "members"
                     value = @(
                         @{
-                            value   = $currentUser.id
-                            display = $currentUser.userName
+                            value   = $currentAccount.id
+                            display = $currentAccount.userName
                         }
                     )
                 }
@@ -242,12 +242,12 @@ if ($null -ne $currentUser.id) {
             $addGroupMember = Invoke-RestMethod @splatWebRequest -Verbose:$false
             $auditLogs.Add([PSCustomObject]@{
                     Action  = "RevokePermission"
-                    Message = "Successfully revoked permission to Group $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id))"
+                    Message = "Successfully revoked permission to Group $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id))"
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: Would revoke permission to $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id))"
+            Write-Warning "DryRun: Would revoke permission to $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id))"
         }
     }
     catch {
@@ -273,7 +273,7 @@ if ($null -ne $currentUser.id) {
         $success = $false  
         $auditLogs.Add([PSCustomObject]@{
                 Action  = "RevokePermission"
-                Message = "Error revoking permission to Group $($pRef.Name) ($($pRef.id)) for $($currentUser.userName) ($($currentUser.id)). Error Message: $auditErrorMessage"
+                Message = "Error revoking permission to Group $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"
                 IsError = $True
             })
     }

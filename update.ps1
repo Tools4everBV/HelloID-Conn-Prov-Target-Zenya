@@ -187,16 +187,16 @@ try {
         Headers = $headers
         Method  = 'GET'
     }
-    $currentUser = $null
-    $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
+    $currentAccount = $null
+    $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
-    if ($null -eq $currentUser.id) {
+    if ($null -eq $currentAccount.id) {
         throw "No User found in Zenya with id $($aRef.id)"
     }
 
     #Verify if the account must be updated
     $splatCompareProperties = @{
-        ReferenceObject  = @( ($currentUser | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty id, meta).PSObject.Properties )
+        ReferenceObject  = @( ($currentAccount | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty id, meta).PSObject.Properties )
         DifferenceObject = @( ($account | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty schemas).PSObject.Properties )
     }
     $propertiesChanged = (Compare-Object @splatCompareProperties -PassThru).Where( { $_.SideIndicator -eq '=>' })
@@ -253,14 +253,14 @@ catch {
 }
 
 # Update Zenya account
-if ($null -ne $currentUser.id) {
+if ($null -ne $currentAccount.id) {
     switch ($updateAction) {
         'Update' {
             try {
-                Write-Verbose "Updating Zenya account $($currentUser.userName) ($($currentUser.id))"
+                Write-Verbose "Updating Zenya account $($currentAccount.userName) ($($currentAccount.id))"
 
                 $bodyUpdate = [PSCustomObject]@{
-                    id         = $currentUser.id
+                    id         = $currentAccount.id
                     operations = @()
                 }
 
@@ -288,7 +288,7 @@ if ($null -ne $currentUser.id) {
                 $body = ($bodyUpdate | ConvertTo-Json -Depth 10)
 
                 $splatWebRequest = @{
-                    Uri     = "$baseUrl/scim/users/$($currentUser.id)"
+                    Uri     = "$baseUrl/scim/users/$($currentAccount.id)"
                     Headers = $headers
                     Method  = 'PATCH'
                     Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
@@ -308,7 +308,7 @@ if ($null -ne $currentUser.id) {
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would update Zenya account $($currentUser.userName) ($($currentUser.id))"
+                    Write-Warning "DryRun: Would update Zenya account $($currentAccount.userName) ($($currentAccount.id))"
                 }
                 break
             }
@@ -335,18 +335,18 @@ if ($null -ne $currentUser.id) {
                 $success = $false  
                 $auditLogs.Add([PSCustomObject]@{
                         Action  = "UpdateAccount"
-                        Message = "Error updating Zenya account $($currentUser.userName) ($($currentUser.id)). Error Message: $auditErrorMessage"
+                        Message = "Error updating Zenya account $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"
                         IsError = $True
                     })
             }
         }
         'NoChanges' {
-            Write-Verbose "No changes to Zenya account $($currentUser.userName) ($($currentUser.id))"
+            Write-Verbose "No changes to Zenya account $($currentAccount.userName) ($($currentAccount.id))"
 
             if (-not($dryRun -eq $true)) {
                 $aRef = [PSCustomObject]@{
-                    id       = $currentUser.id
-                    userName = $currentUser.userName
+                    id       = $currentAccount.id
+                    userName = $currentAccount.userName
                 }
 
                 $auditLogs.Add([PSCustomObject]@{
@@ -356,7 +356,7 @@ if ($null -ne $currentUser.id) {
                     })
             }
             else {
-                Write-Warning "DryRun: No changes to Zenya account $($currentUser.userName) ($($currentUser.id))"
+                Write-Warning "DryRun: No changes to Zenya account $($currentAccount.userName) ($($currentAccount.id))"
             }
             break
         }

@@ -134,10 +134,10 @@ try {
         Headers = $headers
         Method  = 'GET'
     }
-    $currentUser = $null
-    $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
+    $currentAccount = $null
+    $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
-    if ($null -eq $currentUser.id) {
+    if ($null -eq $currentAccount.id) {
         throw "No User found in Zenya with id $($aRef.id)"
     }
 }
@@ -184,12 +184,12 @@ catch {
 }
 
 # Disable Zenya account
-if ($null -ne $currentUser.id) {
+if ($null -ne $currentAccount.id) {
     try {
-        Write-Verbose "Disabling Zenya account $($currentUser.userName) ($($currentUser.id))"
+        Write-Verbose "Disabling Zenya account $($currentAccount.userName) ($($currentAccount.id))"
 
         $bodyUpdate = [PSCustomObject]@{
-            id         = $currentUser.id
+            id         = $currentAccount.id
             operations = @(
                 @{
                     op    = "replace"
@@ -201,7 +201,7 @@ if ($null -ne $currentUser.id) {
         $body = ($bodyUpdate | ConvertTo-Json -Depth 10)
 
         $splatWebRequest = @{
-            Uri     = "$baseUrl/scim/users/$($currentUser.id)"
+            Uri     = "$baseUrl/scim/users/$($currentAccount.id)"
             Headers = $headers
             Method  = 'PATCH'
             Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
@@ -220,7 +220,7 @@ if ($null -ne $currentUser.id) {
                 })
         }
         else {
-            Write-Warning "DryRun: Would disable Zenya account $($currentUser.userName) ($($currentUser.id))"
+            Write-Warning "DryRun: Would disable Zenya account $($currentAccount.userName) ($($currentAccount.id))"
         }
     }
     catch {
@@ -246,7 +246,7 @@ if ($null -ne $currentUser.id) {
         $success = $false  
         $auditLogs.Add([PSCustomObject]@{
                 Action  = "DisableAccount"
-                Message = "Error disabling Zenya account $($currentUser.userName) ($($currentUser.id)). Error Message: $auditErrorMessage"
+                Message = "Error disabling Zenya account $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"
                 IsError = $True
             })
     }

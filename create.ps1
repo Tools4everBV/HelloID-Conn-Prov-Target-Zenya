@@ -9,7 +9,7 @@ $p = $person | ConvertFrom-Json
 $success = $true # Set to true at start, because only when an error occurs it is set to false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
 
-$VerbosePreference = "Continue"
+$VerbosePreference = "SilentlyContinue"
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
@@ -37,30 +37,32 @@ $account = [PSCustomObject]@{
     userName          = $p.Accounts.MicrosoftActiveDirectory.UserPrincipalName
     displayname       = $p.Accounts.MicrosoftActiveDirectory.DisplayName
     preferredLanguage = "nl-NL"
-    active            = $False
-    emails            = [PSCustomObject]@{
-        value   = $p.Accounts.MicrosoftActiveDirectory.mail
-        type    = "work"
-        primary = $True
-    }
-}
-
-# Troubleshooting
-$account = [PSCustomObject]@{
-    schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
-    externalId        = "99999999"
-    userName          = "TestHelloID@enyoi.onmicrosoft.com"
-    displayname       = "Test HelloID"
-    preferredLanguage = "nl-NL"
     active            = $false
     emails            = @(
-        [PSCustomObject]@{
-            value   = "T.HelloID@enyoi.onmicrosoft.com"
+            [PSCustomObject]@{
+            value   = $p.Accounts.MicrosoftActiveDirectory.mail
             type    = "work"
             primary = $true
         }
     )
 }
+
+# Troubleshooting
+# $account = [PSCustomObject]@{
+#     schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
+#     externalId        = "99999999"
+#     userName          = "TestHelloID@enyoi.onmicrosoft.com"
+#     displayname       = "Test HelloID"
+#     preferredLanguage = "nl-NL"
+#     active            = $false
+#     emails            = @(
+#         [PSCustomObject]@{
+#             value   = "T.HelloID@enyoi.onmicrosoft.com"
+#             type    = "work"
+#             primary = $true
+#         }
+#     )
+# }
 # $dryRun = $false
 
 #region functions
@@ -177,14 +179,15 @@ try {
 
     Write-Verbose "Querying Zenya account with userName $($account.userName)"
     $splatWebRequest = @{
-        Uri     = "$baseUrl/scim/us1ers?filter=userName%20eq%20%22$($account.userName)%22"
+        Uri     = "$baseUrl/scim/users?filter=userName%20eq%20%22$($account.userName)%22"
         Headers = $headers
         Method  = 'GET'
     }
     $currentAccount = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
 
+
     if ($null -ne $currentAccount.id) {
-        Write-Verbose "Successfully queried Zenya account with userName $($account.userName): $($currentAccount.id)"
+        Write-Verbose "Successfully queried Zenya account with userName $($account.userName):  $($currentAccount.id)"
         
         if ($updateAccount -eq $true) {
             $action = 'Update-Correlate'

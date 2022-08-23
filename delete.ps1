@@ -159,10 +159,10 @@ try {
         Headers = $headers
         Method  = 'GET'
     }
-    $currentUser = $null
-    $currentUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
+    $currentAccount = $null
+    $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
-    if ($null -eq $currentUser.id) {
+    if ($null -eq $currentAccount.id) {
         throw "No User found in Zenya with id $($aRef.id)"
     }
 }
@@ -209,17 +209,17 @@ catch {
 }
 
 # Delete Zenya account
-if ($null -ne $currentUser.id) {
+if ($null -ne $currentAccount.id) {
     try {
-        Write-Verbose "Deleting Zenya account $($currentUser.userName) ($($currentUser.id))"
+        Write-Verbose "Deleting Zenya account $($currentAccount.userName) ($($currentAccount.id))"
 
         $bodyDelete = [PSCustomObject]@{
-            id = $currentUser.id
+            id = $currentAccount.id
         }
         $body = $bodyDelete | ConvertTo-Json -Depth 10
 
         $splatWebRequest = @{
-            Uri     = "$baseUrl/scim/users/$($currentUser.id)"
+            Uri     = "$baseUrl/scim/users/$($currentAccount.id)"
             Headers = $headers
             Method  = 'DELETE'
             Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
@@ -234,7 +234,7 @@ if ($null -ne $currentUser.id) {
                 })
         }
         else {
-            Write-Warning "DryRun: Would delete Zenya account $($currentUser.userName) ($($currentUser.id))"
+            Write-Warning "DryRun: Would delete Zenya account $($currentAccount.userName) ($($currentAccount.id))"
         }
     }
     catch {
@@ -260,7 +260,7 @@ if ($null -ne $currentUser.id) {
         $success = $false  
         $auditLogs.Add([PSCustomObject]@{
                 Action  = "DeleteAccount"
-                Message = "Error deleting Zenya account $($currentUser.userName) ($($currentUser.id)). Error Message: $auditErrorMessage"
+                Message = "Error deleting Zenya account $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"
                 IsError = $True
             })
     }
