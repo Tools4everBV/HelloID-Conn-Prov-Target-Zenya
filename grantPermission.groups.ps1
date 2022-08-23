@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-GrantPermission-Group
 #
-# Version: 1.1.1
+# Version: 1.1.2
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
@@ -38,7 +38,7 @@ $clientSecret = $c.clientSecret
 # }
 # $dryRun = $false
 
-#region Functions
+#region functions
 function New-AuthorizationHeaders {
     [CmdletBinding()]
     [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
@@ -75,6 +75,32 @@ function New-AuthorizationHeaders {
     }
 }
 
+function Resolve-HTTPError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            FullyQualifiedErrorId = $ErrorObject.FullyQualifiedErrorId
+            MyCommand             = $ErrorObject.InvocationInfo.MyCommand
+            RequestUri            = $ErrorObject.TargetObject.RequestUri
+            ScriptStackTrace      = $ErrorObject.ScriptStackTrace
+            ErrorMessage          = ''
+        }
+        if ($ErrorObject.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') {
+            $httpErrorObj.ErrorMessage = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            $httpErrorObj.ErrorMessage = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+        }
+        Write-Output $httpErrorObj
+    }
+}
+
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
     param (
@@ -88,13 +114,15 @@ function Resolve-ZenyaErrorMessage {
             $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
-                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
+                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
                 if ($null -ne $errorObjectDetail) {
                     try {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
 
                         if ($null -ne $errorDetailConverted) {
-                            $errorMessage = $errorDetailConverted.title
+                            if ($null -ne $errorDetailConverted.Error.Message) {
+                                $errorMessage = $errorDetailConverted.Error.Message
+                            }
                         }
                     }
                     catch {
@@ -110,13 +138,13 @@ function Resolve-ZenyaErrorMessage {
             }
         }
         catch {
-            $errorMessage = "$($ErrorObject.Exception.Message)"
+            $errorMessage = $ErrorObject
         }
 
         Write-Output $errorMessage
     }
 }
-#endregion Functions
+#endregion functions
 
 # Get current Zenya account
 try {
@@ -141,10 +169,24 @@ try {
 }
 catch {
     $ex = $PSItem
-    $verboseErrorMessage = $ex
+    if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObject = Resolve-HTTPError -Error $ex
+
+        $verboseErrorMessage = $errorObject.ErrorMessage
+
+        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
+    }
+
+    # If error message empty, fall back on $ex.Exception.Message
+    if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
+        $verboseErrorMessage = $ex.Exception.Message
+    }
+    if ([String]::IsNullOrEmpty($auditErrorMessage)) {
+        $auditErrorMessage = $ex.Exception.Message
+    }
+
     Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
 
-    $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
     if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*") {
         if (-Not($dryRun -eq $True)) {
             $success = $false
@@ -211,10 +253,23 @@ if ($null -ne $currentUser.id) {
     }
     catch {
         $ex = $PSItem
-        $verboseErrorMessage = $ex
+        if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+            $errorObject = Resolve-HTTPError -Error $ex
+
+            $verboseErrorMessage = $errorObject.ErrorMessage
+
+            $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
+        }
+
+        # If error message empty, fall back on $ex.Exception.Message
+        if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
+            $verboseErrorMessage = $ex.Exception.Message
+        }
+        if ([String]::IsNullOrEmpty($auditErrorMessage)) {
+            $auditErrorMessage = $ex.Exception.Message
+        }
+
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
-        
-        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
         
         $success = $false  
         $auditLogs.Add([PSCustomObject]@{

@@ -10,6 +10,7 @@
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
+| 1.1.2   | Updated with http error resolving | 2022/08/23  |
 | 1.1.1   | Updated with new logging | 2022/08/13  |
 | 1.1.0   | Updated with new logging and added group management | 2022/07/12  |
 | 1.0.0   | Initial release | 2020/08/06  |

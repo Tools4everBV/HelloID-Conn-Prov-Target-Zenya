@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Disable
 #
-# Version: 1.1.1
+# Version: 1.1.2
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
@@ -143,10 +143,24 @@ try {
 }
 catch {
     $ex = $PSItem
-    $verboseErrorMessage = $ex
+    if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObject = Resolve-HTTPError -Error $ex
+
+        $verboseErrorMessage = $errorObject.ErrorMessage
+
+        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
+    }
+
+    # If error message empty, fall back on $ex.Exception.Message
+    if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
+        $verboseErrorMessage = $ex.Exception.Message
+    }
+    if ([String]::IsNullOrEmpty($auditErrorMessage)) {
+        $auditErrorMessage = $ex.Exception.Message
+    }
+
     Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
 
-    $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
     if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*" -or $auditErrorMessage -Like "*User not found*") {
         if (-Not($dryRun -eq $True)) {
             $auditLogs.Add([PSCustomObject]@{
@@ -211,10 +225,23 @@ if ($null -ne $currentUser.id) {
     }
     catch {
         $ex = $PSItem
-        $verboseErrorMessage = $ex
+        if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+            $errorObject = Resolve-HTTPError -Error $ex
+
+            $verboseErrorMessage = $errorObject.ErrorMessage
+
+            $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
+        }
+
+        # If error message empty, fall back on $ex.Exception.Message
+        if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
+            $verboseErrorMessage = $ex.Exception.Message
+        }
+        if ([String]::IsNullOrEmpty($auditErrorMessage)) {
+            $auditErrorMessage = $ex.Exception.Message
+        }
+
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
-        
-        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $ex
         
         $success = $false  
         $auditLogs.Add([PSCustomObject]@{
