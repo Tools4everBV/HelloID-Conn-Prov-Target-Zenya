@@ -10,6 +10,7 @@
 ## Versioning
 | Version | Description | Date |
 | - | - | - |
+| 1.1.3   | Added support to set title, manager and department | 2022/10/12  |
 | 1.1.2   | Updated with http error resolving | 2022/08/23  |
 | 1.1.1   | Updated with new logging | 2022/08/13  |
 | 1.1.0   | Updated with new logging and added group management | 2022/07/12  |
@@ -33,7 +34,8 @@ More information about supported API actions can be found on: https://identityma
 
 > Note that this connector is limited to the available functionalitiy of the SCIM API.
  - > This means we can only manage groups we actually created with HelloID. So only the groups we created through HelloID Resource Creation.
- - > Also, at this moment, we cannot set the title, department or manager on the Zenya user accounts.
+ - > We can only set a department that already exists in Zenya. For this, all departments must have a unique name within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments will need to take place within Zenya
+ - > We can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first.
   
 
 > Also please keep in mind that after you have created and tested the connector Infoland has to set the current users in scope of the synchronisation, if this is not done by Infoland every user will get a new account since accounts are connected to the connector.
@@ -77,7 +79,8 @@ The following settings are required to connect to the API.
 ### Remarks
  - We only manage the groups we created with HelloID (the registered provider in Zenya for HelloID).
  - > Note that HelloID can __only create groups__. The groups will __not be deleted by HelloID__.
- - > Note that, at this moment, we cannot set the title, department or manager on the Zenya user accounts.
+ - > We can only set a department that already exists in Zenya. For this, all departments must have a unique name within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments will need to take place within Zenya
+ - > We can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first.
 
 ## Getting help
 > _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-Configure-a-custom-PowerShell-target-system) pages_

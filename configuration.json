@@ -31,6 +31,36 @@
     }
   },
   {
+    "key": "updateUserOnCorrelate",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Update User when correlating and mapped data differs from data in Zenya",
+      "required": false,
+      "description": "This will update Zenya users in the create action (not just correlate)."
+    }
+  },
+  {
+    "key": "setDepartment",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Set department in Zenya",
+      "required": false,
+      "description": "Please note that we can only set a department that already exists in Zenya. For this, all departments must have a unique name within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments will need to take place within Zenya"
+    }
+  },
+  {
+    "key": "setManager",
+    "type": "checkbox",
+    "defaultValue": false,
+    "templateOptions": {
+      "label": "Set manager in Zenya",
+      "required": false,
+      "description": "Please note that we can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first."
+    }
+  },
+  {
     "key": "isDebug",
     "type": "checkbox",
     "defaultValue": false,

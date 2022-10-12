@@ -1,32 +1,34 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Delete
 #
-# Version: 1.1.2
+# Version: 1.1.3
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
 $aRef = $AccountReference | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $success = $true # Set to true at start, because only when an error occurs it is set to false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
-
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
-# Enable TLS1.2
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($($c.isDebug)) {
     $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Used to connect to Zenya Scim endpoints
 $baseUrl = $c.serviceAddress
 $clientId = $c.clientId
 $clientSecret = $c.clientSecret
+$setDepartment = $c.setDepartment
+$setManager = $c.setManager
 
 # Account mapping
 
@@ -189,19 +191,19 @@ catch {
     if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*" -or $auditErrorMessage -Like "*User not found*") {
         if (-Not($dryRun -eq $True)) {
             $auditLogs.Add([PSCustomObject]@{
-                    Action  = "DeleteAccount"
-                    Message = "No Zenya account found with id $($aRef.id). Possibly already deleted, skipping action."
+                    Action  = "DisableAccount"
+                    Message = "No Zenya account found with id $($aRef.id). Possibly already deleted."
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: No Zenya account found with id $($aRef.id). Possibly already deleted, skipping action."
+            Write-Warning "DryRun: No Zenya account found with id $($aRef.id). Possibly already deleted."
         }        
     }
     else {
         $success = $false  
         $auditLogs.Add([PSCustomObject]@{
-                Action  = "DeleteAccount"
+                Action  = "DisableAccount"
                 Message = "Error querying Zenya account with id $($aRef.id). Error Message: $auditErrorMessage"
                 IsError = $True
             })
@@ -241,12 +243,12 @@ if ($null -ne $currentAccount.id) {
         $ex = $PSItem
         if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
             $errorObject = Resolve-HTTPError -Error $ex
-    
+
             $verboseErrorMessage = $errorObject.ErrorMessage
-    
+
             $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
         }
-    
+
         # If error message empty, fall back on $ex.Exception.Message
         if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
             $verboseErrorMessage = $ex.Exception.Message
@@ -254,7 +256,7 @@ if ($null -ne $currentAccount.id) {
         if ([String]::IsNullOrEmpty($auditErrorMessage)) {
             $auditErrorMessage = $ex.Exception.Message
         }
-    
+
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
         
         $success = $false  
@@ -275,7 +277,7 @@ $result = [PSCustomObject]@{
     # Optionally return data for use in other systems
     ExportData = [PSCustomObject]@{
         id       = $aRef.id
-        userName = $aRef.userName
+        username = $aRef.username
     }
 } 
 Write-Output $result | ConvertTo-Json -Depth 10

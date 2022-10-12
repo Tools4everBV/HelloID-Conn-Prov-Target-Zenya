@@ -1,36 +1,38 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Disable
 #
-# Version: 1.1.2
+# Version: 1.1.3
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
 $aRef = $AccountReference | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $success = $true # Set to true at start, because only when an error occurs it is set to false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
-
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
-# Enable TLS1.2
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($($c.isDebug)) {
     $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Used to connect to Zenya Scim endpoints
 $baseUrl = $c.serviceAddress
 $clientId = $c.clientId
 $clientSecret = $c.clientSecret
+$setDepartment = $c.setDepartment
+$setManager = $c.setManager
 
 # Account mapping
 $account = [PSCustomObject]@{
-    active = $True
+    active = $False
 }
 
 # Troubleshooting
@@ -77,6 +79,32 @@ function New-AuthorizationHeaders {
     }
 }
 
+function Resolve-HTTPError {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        $httpErrorObj = [PSCustomObject]@{
+            FullyQualifiedErrorId = $ErrorObject.FullyQualifiedErrorId
+            MyCommand             = $ErrorObject.InvocationInfo.MyCommand
+            RequestUri            = $ErrorObject.TargetObject.RequestUri
+            ScriptStackTrace      = $ErrorObject.ScriptStackTrace
+            ErrorMessage          = ''
+        }
+        if ($ErrorObject.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') {
+            $httpErrorObj.ErrorMessage = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            $httpErrorObj.ErrorMessage = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+        }
+        Write-Output $httpErrorObj
+    }
+}
+
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
     param (
@@ -90,13 +118,15 @@ function Resolve-ZenyaErrorMessage {
             $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
-                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '\{(.*?)\}').Value
+                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
                 if ($null -ne $errorObjectDetail) {
                     try {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
 
                         if ($null -ne $errorDetailConverted) {
-                            $errorMessage = $errorDetailConverted.title
+                            if ($null -ne $errorDetailConverted.Error.Message) {
+                                $errorMessage = $errorDetailConverted.Error.Message
+                            }
                         }
                     }
                     catch {
@@ -112,7 +142,7 @@ function Resolve-ZenyaErrorMessage {
             }
         }
         catch {
-            $errorMessage = "$($ErrorObject.Exception.Message)"
+            $errorMessage = $ErrorObject
         }
 
         Write-Output $errorMessage
@@ -165,12 +195,12 @@ catch {
         if (-Not($dryRun -eq $True)) {
             $auditLogs.Add([PSCustomObject]@{
                     Action  = "DisableAccount"
-                    Message = "No Zenya account found with id $($aRef.id). Possibly already deleted, skipping action."
+                    Message = "No Zenya account found with id $($aRef.id). Possibly already deleted."
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: No Zenya account found with id $($aRef.id). Possibly already deleted, skipping action."
+            Write-Warning "DryRun: No Zenya account found with id $($aRef.id). Possibly already deleted."
         }        
     }
     else {
@@ -206,6 +236,7 @@ if ($null -ne $currentAccount.id) {
             Method  = 'PATCH'
             Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
         }
+
         if (-not($dryRun -eq $true)) {
             $updatedUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
             $aRef = [PSCustomObject]@{
@@ -215,12 +246,12 @@ if ($null -ne $currentAccount.id) {
 
             $auditLogs.Add([PSCustomObject]@{
                     Action  = "DisableAccount"
-                    Message = "Successfully disabled Zenya account $($aRef.userName) ($($aRef.id))"
+                    Message = "Successfully disableed Zenya account $($aRef.userName) ($($aRef.id))"
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: Would disable Zenya account $($currentAccount.userName) ($($currentAccount.id))"
+            Write-Warning "DryRun: Would disablee Zenya account $($currentAccount.userName) ($($currentAccount.id))"
         }
     }
     catch {
@@ -243,7 +274,6 @@ if ($null -ne $currentAccount.id) {
 
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
         
-        $success = $false  
         $auditLogs.Add([PSCustomObject]@{
                 Action  = "DisableAccount"
                 Message = "Error disabling Zenya account $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"

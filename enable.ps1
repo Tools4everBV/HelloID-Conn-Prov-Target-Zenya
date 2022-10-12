@@ -1,32 +1,34 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Enable
 #
-# Version: 1.1.2
+# Version: 1.1.3
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
 $aRef = $AccountReference | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $success = $true # Set to true at start, because only when an error occurs it is set to false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
-
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
-# Enable TLS1.2
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($($c.isDebug)) {
     $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Used to connect to Zenya Scim endpoints
 $baseUrl = $c.serviceAddress
 $clientId = $c.clientId
 $clientSecret = $c.clientSecret
+$setDepartment = $c.setDepartment
+$setManager = $c.setManager
 
 # Account mapping
 $account = [PSCustomObject]@{
@@ -235,6 +237,7 @@ if ($null -ne $currentAccount.id) {
             Method  = 'PATCH'
             Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
         }
+
         if (-not($dryRun -eq $true)) {
             $updatedUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
             $aRef = [PSCustomObject]@{
@@ -272,7 +275,6 @@ if ($null -ne $currentAccount.id) {
 
         Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
         
-        $success = $false  
         $auditLogs.Add([PSCustomObject]@{
                 Action  = "EnableAccount"
                 Message = "Error enabling Zenya account $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"

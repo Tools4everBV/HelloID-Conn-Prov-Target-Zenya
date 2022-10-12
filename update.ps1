@@ -1,32 +1,34 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Update
 #
-# Version: 1.1.2
+# Version: 1.1.3
 #####################################################
 # Initialize default values
 $c = $configuration | ConvertFrom-Json
 $p = $person | ConvertFrom-Json
 $aRef = $AccountReference | ConvertFrom-Json
+$m = $manager | ConvertFrom-Json
+$mRef = $managerAccountReference | ConvertFrom-Json
 $success = $true # Set to true at start, because only when an error occurs it is set to false
 $auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
-
-$VerbosePreference = "SilentlyContinue"
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
-# Enable TLS1.2
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($($c.isDebug)) {
     $true { $VerbosePreference = 'Continue' }
     $false { $VerbosePreference = 'SilentlyContinue' }
 }
+$InformationPreference = "Continue"
+$WarningPreference = "Continue"
+
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Used to connect to Zenya Scim endpoints
 $baseUrl = $c.serviceAddress
 $clientId = $c.clientId
 $clientSecret = $c.clientSecret
+$setDepartment = $c.setDepartment
+$setManager = $c.setManager
 
 # Account mapping
 $account = [PSCustomObject]@{
@@ -35,16 +37,39 @@ $account = [PSCustomObject]@{
     userName          = $p.Accounts.MicrosoftActiveDirectory.UserPrincipalName
     displayname       = $p.Accounts.MicrosoftActiveDirectory.DisplayName
     preferredLanguage = "nl-NL"
+    title             = $p.PrimaryContract.Title.Name
     emails            = @(
         [PSCustomObject]@{
             value   = $p.Accounts.MicrosoftActiveDirectory.mail
             type    = "work"
             primary = $true
         }
-    )
+    )    
+}
+# Remove emails property from object if value equals null
+if ($null -eq $account.emails.Value) {
+    $account.PSObject.Properties.Remove('emails')
 }
 
-# Troubleshooting
+# Create extension object with optional extension properties 
+if ($true -eq $setDepartment) {
+    $extensionObject += @{
+        department = $p.PrimaryContract.Department.DisplayName # Must exist in Zenya!
+    }
+}
+if ($true -eq $setManager) {
+    $extensionObject += @{
+        manager = @{
+            value = $mRef.id # Zenya account id
+        }
+    }
+}
+# Enhance account object with extension object
+if ($null -ne $extensionObject) {
+    $account | Add-Member -MemberType NoteProperty -Name "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" -Value $extensionObject -Force
+}
+
+# # Troubleshooting
 # $aRef = @{
 #    userName = "TestHelloID@enyoi.onmicrosoft.com"
 #    id       = "64e1c737-0274-4ba6-ae12-201edbe77d99"
@@ -55,6 +80,13 @@ $account = [PSCustomObject]@{
 #     userName          = "TestHelloID@enyoi.onmicrosoft.com"
 #     displayname       = "Test HelloID"
 #     preferredLanguage = "nl-NL"
+#     title             = "Tester"
+#     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" = @{
+#         manager = @{
+#             value = "6c529a6b-5c48-4b82-a56b-fca15bbe5b98" # Zenya account id
+#         }
+#         department        = "Stichting Eykenburg test" # Must exist in Zenya!
+#     }
 #     emails            = @(
 #         [PSCustomObject]@{
 #             value   = "T.HelloID@enyoi.onmicrosoft.com"
@@ -196,9 +228,10 @@ try {
 
     #Verify if the account must be updated
     $splatCompareProperties = @{
-        ReferenceObject  = @( ($currentAccount | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty id, meta).PSObject.Properties )
-        DifferenceObject = @( ($account | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty schemas).PSObject.Properties )
+        ReferenceObject  = @( ($currentAccount | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty id, meta, emails).PSObject.Properties )
+        DifferenceObject = @( ($account | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty schemas, emails).PSObject.Properties )
     }
+
     $propertiesChanged = (Compare-Object @splatCompareProperties -PassThru).Where( { $_.SideIndicator -eq '=>' })
     if ($propertiesChanged) {
         Write-Verbose "Account property(s) required to update: [$($propertiesChanged.name -join ",")]"
@@ -266,15 +299,29 @@ if ($null -ne $currentAccount.id) {
 
                 foreach ($property in $propertiesChanged) {
                     # Additional mapping for email object
-                    if ($property.name -eq 'emailValues') {
-                        $bodyUpdate.operations += @{
-                            # op = "replace"
-                            # path = 'emails[type eq "work"].value'
-                            # value = $email
-
+                    if ($property.Name -eq 'emailValues') {
+                        $bodyUpdate.operations += @{      
                             op    = "replace"
                             path  = "emails[type eq `"$($property.Value.type)`"].value"
-                            value = $property.value.value
+                            value = $property.Value.value
+                        }
+                    }
+                    elseif ($property.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                        foreach ($key in $property.Value.Keys) {
+                            if ($key -eq "manager") {
+                                $bodyUpdate.operations += @{
+                                    op    = "replace"
+                                    path  = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:$($key)"
+                                    value = $property.Value."$($key)".Value
+                                }
+                            }
+                            elseif ($key -eq "department") {
+                                $bodyUpdate.operations += @{
+                                    op    = "replace"
+                                    path  = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:$($key)"
+                                    value = $property.Value."$($key)"
+                                }
+                            }
                         }
                     }
                     else {
