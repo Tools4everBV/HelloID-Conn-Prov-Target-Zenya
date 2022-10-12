@@ -350,12 +350,12 @@ if ($null -ne $currentAccount.id) {
 
                     $auditLogs.Add([PSCustomObject]@{
                             Action  = "UpdateAccount"
-                            Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id))"
+                            Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) Properties updated: [$($propertiesChanged.name -join ",")]"
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would update Zenya account $($currentAccount.userName) ($($currentAccount.id))"
+                    Write-Warning "DryRun: Would update Zenya account $($currentAccount.userName) ($($currentAccount.id)). Properties to update: [$($propertiesChanged.name -join ",")]"
                 }
                 break
             }
