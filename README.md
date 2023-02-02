@@ -33,7 +33,8 @@ _HelloID-Conn-Prov-Target-Zenya is a _target_ connector. Zenya (formerly known a
 More information about supported API actions can be found on: https://identitymanagement.services.iprova.nl/swagger-ui/
 
 > Note that this connector is limited to the available functionalitiy of the SCIM API.
- - > This means we can only manage groups we actually created with HelloID. So only the groups we created through HelloID Resource Creation.
+ - > We can only manage groups we actually created with HelloID. So only the groups we created through HelloID Resource Creation.
+   - > Note that HelloID can __only create groups__. The groups will __not be deleted by HelloID__.
  - > We can only set a department that already exists in Zenya. 
    - > For this, all departments must have a unique name (we can only match on name, so matching on code (or any other field) is not possible) within the entire tree (i.e., no duplicate names anywhere).
    - >In addition, maintenance of the departments (i.e., creating/deleting as well as setting the owner) will need to take place within Zenya.
@@ -79,9 +80,11 @@ The following settings are required to connect to the API.
   - Client Secret
 
 ### Remarks
- - We only manage the groups we created with HelloID (the registered provider in Zenya for HelloID).
- - > Note that HelloID can __only create groups__. The groups will __not be deleted by HelloID__.
- - > We can only set a department that already exists in Zenya. For this, all departments must have a unique name within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments will need to take place within Zenya
+ - > We can only manage groups we actually created with HelloID. So only the groups we created through HelloID Resource Creation.
+   - > Note that HelloID can __only create groups__. The groups will __not be deleted by HelloID__.
+ - > We can only set a department that already exists in Zenya. 
+   - > For this, all departments must have a unique name (we can only match on name, so matching on code (or any other field) is not possible) within the entire tree (i.e., no duplicate names anywhere).
+   - >In addition, maintenance of the departments (i.e., creating/deleting as well as setting the owner) will need to take place within Zenya.
  - > We can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first.
 
 ## Getting help
