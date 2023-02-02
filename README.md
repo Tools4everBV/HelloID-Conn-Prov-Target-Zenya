@@ -34,7 +34,7 @@ More information about supported API actions can be found on: https://identityma
 
 > Note that this connector is limited to the available functionalitiy of the SCIM API.
  - > This means we can only manage groups we actually created with HelloID. So only the groups we created through HelloID Resource Creation.
- - > We can only set a department that already exists in Zenya. For this, all departments must have a unique name within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments will need to take place within Zenya
+ - > We can only set a department that already exists in Zenya. For this, all departments must have a unique name (we can only match on name, so mathcing on department code is not possible) within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments (i.e., creating/deleting departmers as well as setting the owner of a department) will need to take place within Zenya.
  - > We can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first.
   
 
