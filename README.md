@@ -4,7 +4,7 @@
 <br />
 
 <p align="center">
-  <img src="https://user-images.githubusercontent.com/69046642/177937093-8bf6f838-5026-4d44-a3fb-1fdd1006fced.png">
+  <img src="https://www.tools4ever.nl/connector-logos/zenya-logo.png">
 </p
 
 ## Versioning
