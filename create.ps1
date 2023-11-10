@@ -85,7 +85,7 @@ if ($null -ne $extensionObject) {
 #         manager    = @{
 #             value = $null #"6c529a6b-5c48-4b82-a56b-fca15bbe5b98" # Zenya account id
 #         }
-#         department = "Stichting Eykenburg test" # Must exist in Zenya!
+#         department = "Custom test" # Must exist in Zenya!
 #     }
 #     emails                                                       = @(
 #         @{
