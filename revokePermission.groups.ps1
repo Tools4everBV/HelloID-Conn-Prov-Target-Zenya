@@ -219,7 +219,7 @@ if ($null -ne $currentAccount.id) {
             id         = $pRef.id
             operations = @(
                 @{
-                    op    = "add"
+                    op    = "remove"
                     path  = "members"
                     value = @(
                         @{
