@@ -55,18 +55,18 @@ The HelloID connector uses the API endpoints listed in the table below.
 ### Available  actions
 The HelloID connector consists of the template scripts shown in the following table.
 
-| Action               | Action(s) Performed                                    | Comment                                                                      |
-| -------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| create.ps1           | Create (or update) and correlate a user account.       |                                                                              |
-| enable.ps1           | Enable a user account                                  |                                                                              |
-| update.ps1           | Update a user account                                  |                                                                              |
-| disable.ps1          | Disable a user account                                 |                                                                              |
-| delete.ps1           | Delete a user account                                  | Be careful when implementing this! There is no way to restore deleted users. |
-| permissions.ps1      | Retrieves all groups and provides them as entitlements |                                                                              |
-| grantPermission.ps1  | Add a user account to a group                          |                                                                              |
-| revokePermission.ps1 | Remove a user account from a group                     |                                                                              |
-| revokePermission.ps1 | Remove a user account from a group                     |                                                                              |
-| resourceCreation.ps1 | Create a group for provided resource, e.g. department  |                                                                              |
+| Action                 | Action(s) Performed                                    | Comment                                                                      |
+| ---------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| create.ps1             | Create (or update) and correlate a user account.       |                                                                              |
+| enable.ps1             | Enable a user account                                  |                                                                              |
+| update.ps1             | Update a user account                                  |                                                                              |
+| disable.ps1            | Disable a user account                                 |                                                                              |
+| delete.ps1             | Delete a user account                                  | Be careful when implementing this! There is no way to restore deleted users. |
+| permissions.ps1        | Retrieves all groups and provides them as entitlements |                                                                              |
+| grantPermission.ps1    | Add a user account to a group                          |                                                                              |
+| revokePermission.ps1   | Remove a user account from a group                     |                                                                              |
+| dynamicPermissions.ps1 | Add/remove a user account to/from a group              |                                                                              |
+| resourceCreation.ps1   | Create a group for provided resource, e.g. department  |                                                                              |
 
 <!-- GETTING STARTED -->
 ## Getting started

@@ -1,14 +1,11 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-Delete
+# HelloID-Conn-Prov-Target-Zenya-ResourceCreation
 #
 # Version: 2.0.0
 #####################################################
 
 # Set to false at start, at the end, only when no error occurs it is set to true
 $outputContext.Success = $false
-
-# AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DyrRun"
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -25,8 +22,6 @@ $WarningPreference = "Continue"
 $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
-
-$actionContext.DryRun = $false
 
 #region functions
 function Resolve-ZenyaErrorMessage {
@@ -133,9 +128,9 @@ function New-AuthorizationHeaders {
 
         Write-Verbose 'Adding Authorization headers'
         $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        $headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        $headers.Add('Accept', 'application/json')
-        $headers.Add('Content-Type', 'application/json')
+        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
+        [void]$headers.Add('Accept', 'application/json')
+        [void]$headers.Add('Content-Type', 'application/json')
         Write-Output $headers
     }
     catch {
@@ -143,20 +138,6 @@ function New-AuthorizationHeaders {
     }
 }
 #endregion functions
-
-#region Account mapping
-$account = [PSCustomObject]$actionContext.Data
-
-# If option to set department isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setDepartment) {
-    $account.PSObject.Properties.Remove("Department")
-}
-
-# If option to set manager isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setManager) {
-    $account.PSObject.Properties.Remove("Manager")
-}
-#endregion Account mapping
 
 try {
     # Create authorization headers
@@ -179,77 +160,23 @@ try {
         throw
     }
 
-    # Get current account
+    # Get groups
     try {
-        Write-Verbose "Querying account with id [$($actionContext.References.Account.Id)]"
+        Write-Verbose "Querying groups"
         $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($actionContext.References.Account.Id)"
+            Uri             = "$baseUrl/scim/groups"
             Headers         = $headers
             Method          = 'GET'
             ContentType     = "application/json;charset=utf-8"
             UseBasicParsing = $true
         }
+        $groups = $null
+        $groups = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
 
-        $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
+        # Group on externalId to check if group exists (as externalId has to be unique for a group)
+        $groupsGrouped = $groups | Group-Object externalId -AsHashTable -AsString
 
-        if (($currentAccount | Measure-Object).count -gt 1) {
-            throw "Multiple accounts found with id [$($actionContext.References.Account.Id)]. Please correct this so the accounts are unique."
-        }
-        elseif (($currentAccount | Measure-Object).count -eq 0) {
-            throw "No account found with id [$($actionContext.References.Account.Id)]."
-        }
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
-    
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-
-        if ($errorMessage.AuditErrorMessage -Like "*No account found*" -or $errorMessage.AuditErrorMessage -Like "*(404) Not Found.*" -or $errorMessage.AuditErrorMessage -Like "*User not found*") {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped deleting account with id [$($actionContext.References.Account.Id)]. Reason: No longer exists"
-                    IsError = $false
-                })
-        }
-        else {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw
-        }
-    }
-    
-    # Delete account
-    try {
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($currentAccount.id)"
-            Headers         = $headers
-            Method          = 'DELETE'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-
-        if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
-
-            $deletedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Successfully deleted account [$($account.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10)."
-                    IsError = $false
-                })
-        }
-        else {
-            Write-Warning "DryRun: Would delete account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
-        }
-        break
+        Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
     }
     catch {
         $ex = $PSItem
@@ -257,11 +184,10 @@ try {
 
         Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
         Write-Verbose "URI: $($splatWebRequest.Uri)"
-        Write-Verbose "Body: $($body)"
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Error deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
+                Message = "Error querying groups. Error Message: $($errorMessage.AuditErrorMessage)"
                 IsError = $true
             })
 
@@ -269,6 +195,76 @@ try {
         throw
     }
 
+    # In preview only the first 10 items of the SourceData are used
+    foreach ($resource in $resourceContext.SourceData) {
+        Write-Information "Checking $($resource)"
+        try {
+            # Example: Department (department differs from other objects as the property for the name is "DisplayName", not "Name")
+            $groupBody = [PSCustomObject]@{
+                schemas      = "urn:ietf:params:scim:schemas:core:2.0:Group"
+                external_id  = "department_$($resource.ExternalId)"
+                display_name = "department_$($resource.DisplayName)"
+            }
+
+            $currentGroup = $null
+            $currentGroup = $groupsGrouped["$($groupBody.external_id)"]
+            
+            # If resource does not exist
+            if ($null -eq $currentGroup) {
+                <# Resource creation preview uses a timeout of 30 seconds
+                while actual run has timeout of 10 minutes #>
+                $body = ($groupBody | ConvertTo-Json -Depth 10)
+                $splatWebRequest = @{
+                    Uri             = "$baseUrl/scim/groups"
+                    Headers         = $headers
+                    Method          = 'POST'
+                    Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
+                    ContentType     = "application/json;charset=utf-8"
+                    UseBasicParsing = $true
+                }
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Creating group [$($groupBody.external_id)]. Body: $body"
+
+                    $createdGroup = Invoke-RestMethod @splatWebRequest -Verbose:$false
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Created group [$($groupBody.external_id)] for resource [$($resource | ConvertTo-Json)]"
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would create group [$($groupBody.external_id)]. Body: $body"
+                }
+            }
+            else {
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Skipped creating group [$($groupBody.external_id)]. Reason: Already exists"
+                }
+                else {
+                    Write-Warning "DryRun: Would skip creating group [$($groupBody.external_id)]. Reason: Already exists"
+                }
+            }
+        }
+        catch {
+            $ex = $PSItem
+            $errorMessage = Get-ErrorMessage -ErrorObject $ex
+
+            Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
+            Write-Verbose "URI: $($splatWebRequest.Uri)"
+            Write-Verbose "Body: $($body)"
+
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    # Action  = "" # Optional
+                    Message = "Error creating group [$($groupBody.external_id)] for resource [$($resource | ConvertTo-Json)]. Error Message: $($errorMessage.AuditErrorMessage)"
+                    IsError = $true
+                })
+
+            # Throw terminal error
+            throw
+        }
+    }
 }
 catch {
     $ex = $PSItem

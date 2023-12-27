@@ -1,14 +1,11 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-Delete
+# HelloID-Conn-Prov-Target-Zenya-Permissions-Grant
 #
 # Version: 2.0.0
 #####################################################
 
 # Set to false at start, at the end, only when no error occurs it is set to true
 $outputContext.Success = $false
-
-# AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DyrRun"
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -25,8 +22,6 @@ $WarningPreference = "Continue"
 $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
-
-$actionContext.DryRun = $false
 
 #region functions
 function Resolve-ZenyaErrorMessage {
@@ -133,9 +128,9 @@ function New-AuthorizationHeaders {
 
         Write-Verbose 'Adding Authorization headers'
         $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        $headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        $headers.Add('Accept', 'application/json')
-        $headers.Add('Content-Type', 'application/json')
+        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
+        [void]$headers.Add('Accept', 'application/json')
+        [void]$headers.Add('Content-Type', 'application/json')
         Write-Output $headers
     }
     catch {
@@ -143,20 +138,6 @@ function New-AuthorizationHeaders {
     }
 }
 #endregion functions
-
-#region Account mapping
-$account = [PSCustomObject]$actionContext.Data
-
-# If option to set department isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setDepartment) {
-    $account.PSObject.Properties.Remove("Department")
-}
-
-# If option to set manager isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setManager) {
-    $account.PSObject.Properties.Remove("Manager")
-}
-#endregion Account mapping
 
 try {
     # Create authorization headers
@@ -202,54 +183,66 @@ try {
     catch {
         $ex = $PSItem
         $errorMessage = Get-ErrorMessage -ErrorObject $ex
-    
+
         Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
         Write-Verbose "URI: $($splatWebRequest.Uri)"
 
-        if ($errorMessage.AuditErrorMessage -Like "*No account found*" -or $errorMessage.AuditErrorMessage -Like "*(404) Not Found.*" -or $errorMessage.AuditErrorMessage -Like "*User not found*") {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped deleting account with id [$($actionContext.References.Account.Id)]. Reason: No longer exists"
-                    IsError = $false
-                })
-        }
-        else {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
+                IsError = $true
+            })
 
-            # Throw terminal error
-            throw
-        }
+        # Throw terminal error
+        throw
     }
-    
-    # Delete account
+
+    # Grant permission
     try {
+        Write-Verbose "Granting permission to $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id))"
+
+        # Create permission body
+        $permissionBody = [PSCustomObject]@{
+            schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
+            id         = $pRef.id
+            operations = @(
+                @{
+                    op    = "add"
+                    path  = "members"
+                    value = @(
+                        @{
+                            value   = $currentAccount.id
+                            display = $currentAccount.userName
+                        }
+                    )
+                }
+            )
+        }
+
+        $body = ($permissionBody | ConvertTo-Json -Depth 10)
         $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($currentAccount.id)"
+            Uri             = "$baseUrl/scim/groups/$($pRef.Id)"
             Headers         = $headers
-            Method          = 'DELETE'
+            Method          = 'PATCH'
+            Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
             ContentType     = "application/json;charset=utf-8"
             UseBasicParsing = $true
         }
 
         if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
+            Write-Verbose "Granting permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
 
-            $deletedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
+            $addPermission = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
-                    Message = "Successfully deleted account [$($account.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10)."
+                    Message = "Successfully granted permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: Would delete account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
+            Write-Warning "DryRun: Would grant permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
         }
-        break
     }
     catch {
         $ex = $PSItem
@@ -261,14 +254,13 @@ try {
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Error deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
+                Message = "Error granting permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
                 IsError = $true
             })
 
         # Throw terminal error
         throw
     }
-
 }
 catch {
     $ex = $PSItem
