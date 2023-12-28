@@ -208,12 +208,12 @@ try {
 
     # Revoke permission
     try {
-        Write-Verbose "Revoking permission to $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id))"
+        Write-Verbose "Revoking permission to $($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id)) for $($currentAccount.userName) ($($currentAccount.id))"
 
         # Create permission body
         $permissionBody = [PSCustomObject]@{
             schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
-            id         = $pRef.id
+            id         = $actionContext.References.Permission.id
             operations = @(
                 @{
                     op    = "remove"
@@ -230,7 +230,7 @@ try {
 
         $body = ($permissionBody | ConvertTo-Json -Depth 10)
         $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/groups/$($pRef.Id)"
+            Uri             = "$baseUrl/scim/groups/$($actionContext.References.Permission.Id)"
             Headers         = $headers
             Method          = 'PATCH'
             Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
@@ -239,18 +239,18 @@ try {
         }
 
         if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Revoking permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
+            Write-Verbose "Revoking permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
 
             $revokePermission = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
-                    Message = "Successfully revoked permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
+                    Message = "Successfully revoked permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: Would revoke permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
+            Write-Warning "DryRun: Would revoke permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
         }
     }
     catch {
@@ -263,7 +263,7 @@ try {
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Error revoking permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
+                Message = "Error revoking permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
                 IsError = $true
             })
 

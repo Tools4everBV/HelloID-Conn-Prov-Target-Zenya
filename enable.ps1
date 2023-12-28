@@ -23,8 +23,6 @@ $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
 
-$actionContext.DryRun = $false
-
 #region functions
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
@@ -377,7 +375,7 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Updating account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Body: $($updateAccount | ConvertTo-Json -Depth 10)"
+                    Write-Verbose "Enabling account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Body: $body"
     
                     $updatedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
                     # Set the correct account reference
@@ -388,12 +386,12 @@ try {
     
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Successfully updated account [$($currentAccount.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json -Depth 10). New values: $($changedPropertiesObject.newValues | ConvertTo-Json -Depth 10)"
+                            Message = "Successfully enabled account [$($currentAccount.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json -Depth 10). New values: $($changedPropertiesObject.newValues | ConvertTo-Json -Depth 10)"
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would update account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json -Depth 10). New values: $($changedPropertiesObject.newValues | ConvertTo-Json -Depth 10)"
+                    Write-Warning "DryRun: Would enable account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json -Depth 10). New values: $($changedPropertiesObject.newValues | ConvertTo-Json -Depth 10)"
                 }
                 break
             }
@@ -407,7 +405,7 @@ try {
     
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         # Action  = "" # Optional
-                        Message = "Error updating account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
+                        Message = "Error enabling account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
                         IsError = $true
                     })
     
@@ -417,16 +415,10 @@ try {
         }
         'NoChanges' {
             if (-not($dryRun -eq $true)) {
-                Write-Verbose "Skipped updating account [$($account.Username)]. Reason: No changes"
-
-                # Set the correct account reference
-                $outputContext.AccountReference = [PSCustomObject]@{
-                    Id       = $currentAccount.id
-                    Username = $currentAccount.userName
-                }
+                Write-Verbose "Skipped enabling account [$($account.Username)]. Reason: No changes"
             }
             else {
-                Write-Warning "DryRun: Would skip updating account [$($account.Username)]. Reason: No changes"
+                Write-Warning "DryRun: Would skip enabling account [$($account.Username)]. Reason: No changes"
             }
             break
         }

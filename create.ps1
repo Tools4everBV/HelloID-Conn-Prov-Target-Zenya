@@ -8,7 +8,7 @@
 $outputContext.Success = $false
 
 # AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DyrRun"
+$outputContext.AccountReference = "DryRun"
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -25,8 +25,6 @@ $WarningPreference = "Continue"
 $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
-
-$actionContext.DryRun = $false
 
 #region functions
 function Resolve-ZenyaErrorMessage {
@@ -162,6 +160,26 @@ $account.Active = [System.Convert]::ToBoolean($account.Active)
 #endregion Account mapping
 
 try {
+    # Create authorization headers
+    try {
+        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
+    }
+    catch {
+        $ex = $PSItem
+        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+
+        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
+
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw
+    }
+
     # Check if we should try to correlate the account
     if ($actionContext.CorrelationConfiguration.Enabled) {
         $correlationField = $actionContext.CorrelationConfiguration.accountField
@@ -169,26 +187,6 @@ try {
 
         if ($correlationField -eq $null) {
             Write-Warning "Correlation is enabled but not configured correctly."
-        }
-
-        # Create authorization headers
-        try {
-            $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-        }
-        catch {
-            $ex = $PSItem
-            $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-            Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw
         }
 
         # Check if current account exists and and verify if a user must be either [created] or [correlated]
@@ -253,26 +251,6 @@ try {
 
     # Create account
     if (-Not($outputContext.AccountCorrelated -eq $true)) {
-        # Create authorization headers
-        try {
-            $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-        }
-        catch {
-            $ex = $PSItem
-            $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-            Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw
-        }
-
         # Create account
         try {
             # Create account body and set with default properties

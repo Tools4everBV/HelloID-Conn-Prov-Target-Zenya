@@ -23,8 +23,6 @@ $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
 
-$actionContext.DryRun = $false
-
 #region functions
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
@@ -377,7 +375,7 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Updating account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Body: $($updateAccount | ConvertTo-Json -Depth 10)"
+                    Write-Verbose "Updating account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Body: $body"
     
                     $updatedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
                     # Set the correct account reference

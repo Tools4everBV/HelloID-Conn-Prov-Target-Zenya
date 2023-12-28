@@ -29,6 +29,9 @@ foreach ($permission in $actionContext.CurrentPermissions) {
     $currentPermissions[$permission.Reference.Id] = $permission.DisplayName
 }
 
+# Define correlation property of groups - This has to be unique
+$correlationProperty = "externalId"
+
 #region functions
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
@@ -169,18 +172,31 @@ try {
     # Get groups
     try {
         Write-Verbose "Querying groups"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/groups"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-        $groups = $null
-        $groups = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
+        $groups = [System.Collections.ArrayList]::new()
+        $skip = 0
+        $take = 100
+        do {
+            $splatWebRequest = @{
+                Uri             = "$baseUrl/scim/groups?startIndex=$($skip)&count=$($take)"
+                Headers         = $headers
+                Method          = 'GET'
+                ContentType     = "application/json;charset=utf-8"
+                UseBasicParsing = $true
+            }
 
-        # Group on externalId to check if group exists (as externalId has to be unique for a group)
-        $groupsGrouped = $groups | Group-Object externalId -AsHashTable -AsString
+            $response = Invoke-RestMethod @splatWebRequest -Verbose:$false
+            if ($response.Resources -is [array]) {
+                [void]$groups.AddRange($response.Resources)
+            }
+            else {
+                [void]$groups.Add($response.Resources)
+            }
+
+            $skip += $pageSize
+        } while (($groups | Measure-Object).Count -lt $response.totalResults)
+
+        # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
+        $groupsGrouped = $groups | Group-Object $correlationProperty -AsHashTable -AsString
 
         Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
     }
@@ -209,13 +225,14 @@ try {
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $True)) {
                 try {
                     # Example: department_<department externalId>
-                    $groupExternalId = "department_" + $contract.Department.ExternalId
+                    $correlationValue = "department_" + $contract.Department.ExternalId
 
                     # Get group to use id to avoid name change issues
-                    $filter = "external_id eq `"$($groupExternalId)`""
+                    $filter = "$correlationProperty -eq `"$($correlationValue)`""
                     Write-Verbose "Querying group that matches filter [$($filter)]"
 
-                    $group = $groupsGrouped["$($groupExternalId)"]
+                    $group = $null
+                    $group = $groupsGrouped["$($correlationValue)"]
 
                     if (($group | Measure-Object).count -eq 0) {
                         $outputContext.AuditLogs.Add([PSCustomObject]@{

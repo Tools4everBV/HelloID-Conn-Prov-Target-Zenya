@@ -23,6 +23,9 @@ $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
 
+# Define correlation property of groups - This has to be unique
+$correlationProperty = "externalId"
+
 #region functions
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
@@ -163,18 +166,31 @@ try {
     # Get groups
     try {
         Write-Verbose "Querying groups"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/groups"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-        $groups = $null
-        $groups = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
+        $groups = [System.Collections.ArrayList]::new()
+        $skip = 0
+        $take = 100
+        do {
+            $splatWebRequest = @{
+                Uri             = "$baseUrl/scim/groups?startIndex=$($skip)&count=$($take)"
+                Headers         = $headers
+                Method          = 'GET'
+                ContentType     = "application/json;charset=utf-8"
+                UseBasicParsing = $true
+            }
 
-        # Group on externalId to check if group exists (as externalId has to be unique for a group)
-        $groupsGrouped = $groups | Group-Object externalId -AsHashTable -AsString
+            $response = Invoke-RestMethod @splatWebRequest -Verbose:$false
+            if ($response.Resources -is [array]) {
+                [void]$groups.AddRange($response.Resources)
+            }
+            else {
+                [void]$groups.Add($response.Resources)
+            }
+
+            $skip += $pageSize
+        } while (($groups | Measure-Object).Count -lt $response.totalResults)
+
+        # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
+        $groupsGrouped = $groups | Group-Object $correlationProperty -AsHashTable -AsString
 
         Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
     }
@@ -199,20 +215,27 @@ try {
     foreach ($resource in $resourceContext.SourceData) {
         Write-Information "Checking $($resource)"
         try {
-            # Example: Department (department differs from other objects as the property for the name is "DisplayName", not "Name")
-            $groupBody = [PSCustomObject]@{
-                schemas      = "urn:ietf:params:scim:schemas:core:2.0:Group"
-                external_id  = "department_$($resource.ExternalId)"
-                display_name = "department_$($resource.DisplayName)"
-            }
+            # Example: department_<department externalId>
+            $correlationValue = "department_" + $contract.Department.ExternalId
 
-            $currentGroup = $null
-            $currentGroup = $groupsGrouped["$($groupBody.external_id)"]
+            # Get group to use id to avoid name change issues
+            $filter = "$correlationProperty -eq `"$($correlationValue)`""
+            Write-Verbose "Querying group that matches filter [$($filter)]"
+
+            $group = $null
+            $group = $groupsGrouped["$($correlationValue)"]
             
             # If resource does not exist
-            if ($null -eq $currentGroup) {
+            if ($null -eq $group) {
                 <# Resource creation preview uses a timeout of 30 seconds
                 while actual run has timeout of 10 minutes #>
+                # Example: Department (department differs from other objects as the property for the name is "DisplayName", not "Name")
+                $groupBody = [PSCustomObject]@{
+                    schemas      = "urn:ietf:params:scim:schemas:core:2.0:Group"
+                    external_id  = "department_$($resource.ExternalId)"
+                    display_name = "department_$($resource.DisplayName)"
+                }
+
                 $body = ($groupBody | ConvertTo-Json -Depth 10)
                 $splatWebRequest = @{
                     Uri             = "$baseUrl/scim/groups"
@@ -224,26 +247,26 @@ try {
                 }
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Creating group [$($groupBody.external_id)]. Body: $body"
+                    Write-Verbose "Creating group [$($correlationValue)]. Body: $body"
 
                     $createdGroup = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Created group [$($groupBody.external_id)] for resource [$($resource | ConvertTo-Json)]"
+                            Message = "Created group [$($correlationValue)] for resource [$($resource | ConvertTo-Json)]"
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would create group [$($groupBody.external_id)]. Body: $body"
+                    Write-Warning "DryRun: Would create group [$($correlationValue)]. Body: $body"
                 }
             }
             else {
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Skipped creating group [$($groupBody.external_id)]. Reason: Already exists"
+                    Write-Verbose "Skipped creating group [$($correlationValue)]. Reason: Already exists"
                 }
                 else {
-                    Write-Warning "DryRun: Would skip creating group [$($groupBody.external_id)]. Reason: Already exists"
+                    Write-Warning "DryRun: Would skip creating group [$($correlationValue)]. Reason: Already exists"
                 }
             }
         }
@@ -257,7 +280,7 @@ try {
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
-                    Message = "Error creating group [$($groupBody.external_id)] for resource [$($resource | ConvertTo-Json)]. Error Message: $($errorMessage.AuditErrorMessage)"
+                    Message = "Error creating group [$($correlationValue)] for resource [$($resource | ConvertTo-Json)]. Error Message: $($errorMessage.AuditErrorMessage)"
                     IsError = $true
                 })
 

@@ -199,12 +199,12 @@ try {
 
     # Grant permission
     try {
-        Write-Verbose "Granting permission to $($pRef.Name) ($($pRef.id)) for $($currentAccount.userName) ($($currentAccount.id))"
+        Write-Verbose "Granting permission to $($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id)) for $($currentAccount.userName) ($($currentAccount.id))"
 
         # Create permission body
         $permissionBody = [PSCustomObject]@{
             schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
-            id         = $pRef.id
+            id         = $actionContext.References.Permission.id
             operations = @(
                 @{
                     op    = "add"
@@ -221,7 +221,7 @@ try {
 
         $body = ($permissionBody | ConvertTo-Json -Depth 10)
         $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/groups/$($pRef.Id)"
+            Uri             = "$baseUrl/scim/groups/$($actionContext.References.Permission.Id)"
             Headers         = $headers
             Method          = 'PATCH'
             Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
@@ -230,18 +230,18 @@ try {
         }
 
         if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Granting permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
+            Write-Verbose "Granting permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
 
             $addPermission = Invoke-RestMethod @splatWebRequest -Verbose:$false
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
-                    Message = "Successfully granted permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
+                    Message = "Successfully granted permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
                     IsError = $false
                 })
         }
         else {
-            Write-Warning "DryRun: Would grant permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
+            Write-Warning "DryRun: Would grant permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
         }
     }
     catch {
@@ -254,7 +254,7 @@ try {
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Error granting permission: [$($pRef.Name) ($($pRef.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
+                Message = "Error granting permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
                 IsError = $true
             })
 

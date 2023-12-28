@@ -163,15 +163,29 @@ try {
     # Get groups
     try {
         Write-Verbose "Querying groups"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/groups"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-        $groups = $null
-        $groups = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
+
+        $groups = [System.Collections.ArrayList]::new()
+        $skip = 0
+        $take = 100
+        do {
+            $splatWebRequest = @{
+                Uri             = "$baseUrl/scim/groups?startIndex=$($skip)&count=$($take)"
+                Headers         = $headers
+                Method          = 'GET'
+                ContentType     = "application/json;charset=utf-8"
+                UseBasicParsing = $true
+            }
+
+            $response = Invoke-RestMethod @splatWebRequest -Verbose:$false
+            if ($response.Resources -is [array]) {
+                [void]$groups.AddRange($response.Resources)
+            }
+            else {
+                [void]$groups.Add($response.Resources)
+            }
+
+            $skip += $pageSize
+        } while (($groups | Measure-Object).Count -lt $response.totalResults)
 
         Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
     }

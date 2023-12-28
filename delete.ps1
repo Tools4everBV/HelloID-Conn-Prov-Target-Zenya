@@ -8,7 +8,7 @@
 $outputContext.Success = $false
 
 # AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DyrRun"
+$outputContext.AccountReference = "DryRun"
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -25,8 +25,6 @@ $WarningPreference = "Continue"
 $baseUrl = $actionContext.Configuration.serviceAddress
 $clientId = $actionContext.Configuration.clientId
 $clientSecret = $actionContext.Configuration.clientSecret
-
-$actionContext.DryRun = $false
 
 #region functions
 function Resolve-ZenyaErrorMessage {
