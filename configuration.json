@@ -34,16 +34,6 @@
     }
   },
   {
-    "key": "updateUserOnCorrelate",
-    "type": "checkbox",
-    "defaultValue": false,
-    "templateOptions": {
-      "label": "Update on correlate",
-      "required": false,
-      "description": "When toggled, if the mapped data differs from data in Zenya, the Zenya account will be updated on the create event (not just correlated)."
-    }
-  },
-  {
     "key": "setDepartment",
     "type": "checkbox",
     "defaultValue": false,

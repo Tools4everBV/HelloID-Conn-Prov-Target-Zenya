@@ -213,10 +213,10 @@ try {
 
     # In preview only the first 10 items of the SourceData are used
     foreach ($resource in $resourceContext.SourceData) {
-        Write-Information "Checking $($resource)"
+        Write-Verbose "Checking $($resource)"
         try {
             # Example: department_<department externalId>
-            $correlationValue = "department_" + $contract.Department.ExternalId
+            $correlationValue = "department_" + $resource.ExternalId
 
             # Get group to use id to avoid name change issues
             $filter = "$correlationProperty -eq `"$($correlationValue)`""
