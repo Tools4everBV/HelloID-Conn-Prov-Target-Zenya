@@ -21,7 +21,9 @@ Repository for HelloID Provisioning Target Connector to Zenya using the SCIM API
   - [Requirements](#requirements)
   - [Introduction](#introduction)
     - [SCIM based API](#scim-based-api)
-    - [Available  actions](#available--actions)
+    - [Available actions](#available-actions)
+    - [Mapping](#mapping)
+    - [Correlation](#correlation)
   - [Getting started](#getting-started)
     - [Create Provider in Zenya](#create-provider-in-zenya)
     - [Allowing user and groups created by Zenya to be returned in the SCIM service](#allowing-user-and-groups-created-by-zenya-to-be-returned-in-the-scim-service)
@@ -52,7 +54,7 @@ The HelloID connector uses the API endpoints listed in the table below.
 | /scim/users  | API docs for Get Request: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest  |
 | /scim/groups | API docs for Get Request: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetgroupsRequest |
 
-### Available  actions
+### Available actions
 The HelloID connector consists of the template scripts shown in the following table.
 
 | Action                 | Action(s) Performed                                    | Comment                                                                      |
@@ -67,6 +69,26 @@ The HelloID connector consists of the template scripts shown in the following ta
 | revokePermission.ps1   | Remove a user account from a group                     |                                                                              |
 | dynamicPermissions.ps1 | Add/remove a user account to/from a group              |                                                                              |
 | resourceCreation.ps1   | Create a group for provided resource, e.g. department  |                                                                              |
+
+### Mapping
+The mandatory and recommended field mapping is listed below.
+
+| Name        | Create | Enable | Update | Disable | Delete | Store in account data | Default mapping                                                                                                                                 | Mandatory | Comment |
+| ----------- | ------ | ------ | ------ | ------- | ------ | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------- | ------- |
+| Active      | X      | X      |        | X       |        | Yes                   | Mapping: For create: Fixed: False<br>For enable: Fixed: True<br>For disable: Fixed: False                                                       | Yes       |         |
+| Department  | X      | X      |        | X       |        | Yes                   | Mapping: Field: PrimaryContract.Department.DisplayName<br>Custom scripting in code to transform this to the corresponding scim object           | Yes       |         |
+| DisplayName | X      | X      |        | X       |        | Yes                   | Mapping: TBD                                                                                                                                    | Yes       |         |
+| Emails      | X      |        | X      |         |        | Yes                   | Mapping: TBD<br>Custom scripting in code to transform this to the corresponding scim object                                                     | Yes       |         |
+| ExternalId  | X      | X      |        | X       |        | Yes                   | Mapping: Field: ExternalId<br>[Required]                                                                                                        | Yes       |         |
+| Manager     | X      | X      |        | X       |        | Yes                   | Mapping: None<br>Set within script, as the aRef of manager is used. Custom scripting in code to transform this to the corresponding scim object | Yes       |         |
+| Title       | X      | X      |        | X       |        | Yes                   | Mapping: Field: PrimaryContract.Title.Name                                                                                                      | Yes       |         |
+| Username    | X      |        | X      |         |        | Yes                   | Mapping: TBD<br>[Required] Correlation property                                                                                                 | Yes       |         |
+
+### Correlation
+| Correlation field         | Selection | Comment                                                                                                 |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| Person Correlation field  | None      | No selection, as this isn't used. Only the Account correlation field is used.                           |
+| Account Correlation field | Username  | ExternalId isn't available to query users on, therefore only username can be used as correlation field. |
 
 <!-- GETTING STARTED -->
 ## Getting started
