@@ -5,7 +5,8 @@
     "defaultValue": "",
     "templateOptions": {
       "label": "Service Address",
-      "placeholder": "The Service Address of the SCIM endpoint",
+      "placeholder": "https://identitymanagement.services.iprova.nl",
+      "description": "The Service Address of the SCIM endpoint",
       "required": true
     }
   },
@@ -15,7 +16,8 @@
     "defaultValue": "",
     "templateOptions": {
       "label": "Client ID",
-      "placeholder": "The Client ID of the Provider for External User Management in Zenya",
+      "placeholder": "39b65e84-9f34-11ee-8c90-0242ac120002",
+      "description": "The Client ID of the Provider for External User Management in Zenya",
       "required": true
     }
   },
@@ -26,18 +28,9 @@
     "templateOptions": {
       "label": "Client Secret",
       "type": "password",
-      "placeholder": "The Client Secret of the Provider for External User Management in Zenya",
+      "placeholder": "35ff6bdc-9f34-11ee-8c90-0242ac120002",
+      "description": "The Client Secret of the Provider for External User Management in Zenya",
       "required": true
-    }
-  },
-  {
-    "key": "updateUserOnCorrelate",
-    "type": "checkbox",
-    "defaultValue": false,
-    "templateOptions": {
-      "label": "Update User when correlating and mapped data differs from data in Zenya",
-      "required": false,
-      "description": "This will update Zenya users in the create action (not just correlate)."
     }
   },
   {
@@ -47,7 +40,7 @@
     "templateOptions": {
       "label": "Set department in Zenya",
       "required": false,
-      "description": "Please note that we can only set a department that already exists in Zenya. For this, all departments must have a unique name within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments will need to take place within Zenya"
+      "description": "Please note. Currently, we can only set a department that already exists in Zenya. For this, all departments must have a unique name (we can only match on name, so matching on code or any other field is not possible) within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments (i.e., creating/deleting as well as setting the owner) will need to take place within Zenya."
     }
   },
   {
@@ -57,7 +50,7 @@
     "templateOptions": {
       "label": "Set manager in Zenya",
       "required": false,
-      "description": "Please note that we can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first."
+      "description": "Please note. Currently, we can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first."
     }
   },
   {
