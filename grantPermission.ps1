@@ -33,6 +33,8 @@ function Resolve-ZenyaErrorMessage {
         [object]$ErrorObject
     )
     process {
+        $errorMessage = ""
+
         try {
             $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
 
@@ -41,11 +43,14 @@ function Resolve-ZenyaErrorMessage {
                 if ($null -ne $errorObjectDetail) {
                     try {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
-
                         if ($null -ne $errorDetailConverted) {
                             if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorDetailConverted.Error.Message
+                                $errorMessage = $errorMessage + $errorDetailConverted.Error.Message
                             }
+                            if ($null -ne $errorDetailConverted.title) {
+                                $errorMessage = $errorMessage + $errorDetailConverted.title
+                            }
+
                         }
                     }
                     catch {
@@ -54,6 +59,10 @@ function Resolve-ZenyaErrorMessage {
                 }
                 else {
                     $errorMessage = $errorObjectConverted.detail
+                }
+
+                if ($null -ne $errorObjectConverted.status) {
+                    $errorMessage = $errorMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
             else {
@@ -84,7 +93,7 @@ function Get-ErrorMessage {
 
         try {
             $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
-            $errorMessage.AuditErrorMessage = Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message
+            $errorMessage.AuditErrorMessage = (Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message) + ". Response Status: $($ErrorObject.Exception.Response.StatusCode)."
         }
         catch {
             Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
