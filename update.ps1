@@ -1,103 +1,116 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Update
 #
-# Version: 1.1.3
+# Version: 2.0.0
 #####################################################
-# Initialize default values
-$c = $configuration | ConvertFrom-Json
-$p = $person | ConvertFrom-Json
-$aRef = $AccountReference | ConvertFrom-Json
-$m = $manager | ConvertFrom-Json
-$mRef = $managerAccountReference | ConvertFrom-Json
-$success = $true # Set to true at start, because only when an error occurs it is set to false
-$auditLogs = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+# Set to false at start, at the end, only when no error occurs it is set to true
+$outputContext.Success = $false
+
+# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
-switch ($($c.isDebug)) {
-    $true { $VerbosePreference = 'Continue' }
-    $false { $VerbosePreference = 'SilentlyContinue' }
+switch ($actionContext.Configuration.isDebug) {
+    $true { $VerbosePreference = "Continue" }
+    $false { $VerbosePreference = "SilentlyContinue" }
 }
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Enable TLS1.2
-[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
-
 # Used to connect to Zenya Scim endpoints
-$baseUrl = $c.serviceAddress
-$clientId = $c.clientId
-$clientSecret = $c.clientSecret
-$setDepartment = $c.setDepartment
-$setManager = $c.setManager
-
-# Account mapping
-$account = [PSCustomObject]@{
-    schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
-    externalId        = $p.ExternalId
-    userName          = $p.Accounts.MicrosoftActiveDirectory.UserPrincipalName
-    displayname       = $p.Accounts.MicrosoftActiveDirectory.DisplayName
-    preferredLanguage = "nl-NL"
-    title             = $p.PrimaryContract.Title.Name
-    emails            = @(
-        [PSCustomObject]@{
-            value   = $p.Accounts.MicrosoftActiveDirectory.mail
-            type    = "work"
-            primary = $true
-        }
-    )    
-}
-# Remove emails property from object if value equals null
-if ($null -eq $account.emails.Value) {
-    $account.PSObject.Properties.Remove('emails')
-}
-
-# Create extension object with optional extension properties 
-if ($true -eq $setDepartment) {
-    $extensionObject += @{
-        department = $p.PrimaryContract.Department.DisplayName # Must exist in Zenya!
-    }
-}
-if ($true -eq $setManager) {
-    $extensionObject += @{
-        manager = @{
-            value = $mRef.id # Zenya account id
-        }
-    }
-}
-# Enhance account object with extension object
-if ($null -ne $extensionObject) {
-    $account | Add-Member -MemberType NoteProperty -Name "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" -Value $extensionObject -Force
-}
-
-# # Troubleshooting
-# $aRef = @{
-#    userName = "TestHelloID@enyoi.onmicrosoft.com"
-#    id       = "64e1c737-0274-4ba6-ae12-201edbe77d99"
-# }
-# $account = [PSCustomObject]@{
-#     schemas           = "urn:ietf:params:scim:schemas:core:2.0:User"
-#     externalId        = "99999999"
-#     userName          = "TestHelloID@enyoi.onmicrosoft.com"
-#     displayname       = "Test HelloID"
-#     preferredLanguage = "nl-NL"
-#     title             = "Tester"
-#     "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" = @{
-#         manager = @{
-#             value = "6c529a6b-5c48-4b82-a56b-fca15bbe5b98" # Zenya account id
-#         }
-#         department        = "Stichting Eykenburg test" # Must exist in Zenya!
-#     }
-#     emails            = @(
-#         [PSCustomObject]@{
-#             value   = "T.HelloID@enyoi.onmicrosoft.com"
-#             type    = "work"
-#             primary = $true
-#         }
-#     )
-# }
-# $dryRun = $false
+$baseUrl = $actionContext.Configuration.serviceAddress
+$clientId = $actionContext.Configuration.clientId
+$clientSecret = $actionContext.Configuration.clientSecret
 
 #region functions
+function Resolve-ZenyaErrorMessage {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        $errorMessage = ""
+
+        try {
+            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+
+            if ($null -ne $errorObjectConverted.detail) {
+                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
+                if ($null -ne $errorObjectDetail) {
+                    try {
+                        $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
+                        if ($null -ne $errorDetailConverted) {
+                            if ($null -ne $errorDetailConverted.Error.Message) {
+                                $errorMessage = $errorMessage + $errorDetailConverted.Error.Message
+                            }
+                            if ($null -ne $errorDetailConverted.title) {
+                                $errorMessage = $errorMessage + $errorDetailConverted.title
+                            }
+
+                        }
+                    }
+                    catch {
+                        $errorMessage = $errorObjectDetail
+                    }
+                }
+                else {
+                    $errorMessage = $errorObjectConverted.detail
+                }
+
+                if ($null -ne $errorObjectConverted.status) {
+                    $errorMessage = $errorMessage + " (" + $errorObjectConverted.status + ")"
+                }
+            }
+            else {
+                $errorMessage = $ErrorObject
+            }
+        }
+        catch {
+            $errorMessage = $ErrorObject
+        }
+
+        Write-Output $errorMessage
+    }
+}
+
+function Get-ErrorMessage {
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory,
+            ValueFromPipeline
+        )]
+        [object]$ErrorObject
+    )
+    process {
+        $errorMessage = [PSCustomObject]@{
+            VerboseErrorMessage = $null
+            AuditErrorMessage   = $null
+        }
+
+        try {
+            $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
+            $errorMessage.AuditErrorMessage = (Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message) + ". Response Status: $($ErrorObject.Exception.Response.StatusCode)."
+        }
+        catch {
+            Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
+        }
+
+        # If error message empty, fall back on $ex.Exception.Message
+        if ([String]::IsNullOrEmpty($errorMessage.VerboseErrorMessage)) {
+            $errorMessage.VerboseErrorMessage = $ErrorObject.Exception.Message
+        }
+        if ([String]::IsNullOrEmpty($errorMessage.AuditErrorMessage)) {
+            $errorMessage.AuditErrorMessage = $ErrorObject.Exception.Message
+        }
+
+        Write-Output $errorMessage
+    }
+}
+
 function New-AuthorizationHeaders {
     [CmdletBinding()]
     [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
@@ -124,302 +137,318 @@ function New-AuthorizationHeaders {
 
         Write-Verbose 'Adding Authorization headers'
         $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        $headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        $headers.Add('Accept', 'application/json')
-        $headers.Add('Content-Type', 'application/json')
+        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
+        [void]$headers.Add('Accept', 'application/json')
+        [void]$headers.Add('Content-Type', 'application/json')
         Write-Output $headers
     }
     catch {
-        $PSCmdlet.ThrowTerminatingError($_)
-    }
-}
-
-function Resolve-HTTPError {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $httpErrorObj = [PSCustomObject]@{
-            FullyQualifiedErrorId = $ErrorObject.FullyQualifiedErrorId
-            MyCommand             = $ErrorObject.InvocationInfo.MyCommand
-            RequestUri            = $ErrorObject.TargetObject.RequestUri
-            ScriptStackTrace      = $ErrorObject.ScriptStackTrace
-            ErrorMessage          = ''
-        }
-        if ($ErrorObject.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') {
-            $httpErrorObj.ErrorMessage = $ErrorObject.ErrorDetails.Message
-        }
-        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
-            $httpErrorObj.ErrorMessage = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
-        }
-        Write-Output $httpErrorObj
-    }
-}
-
-function Resolve-ZenyaErrorMessage {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        try {
-            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
-
-            if ($null -ne $errorObjectConverted.detail) {
-                $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
-                if ($null -ne $errorObjectDetail) {
-                    try {
-                        $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
-
-                        if ($null -ne $errorDetailConverted) {
-                            if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorDetailConverted.Error.Message
-                            }
-                        }
-                    }
-                    catch {
-                        $errorMessage = $errorObjectDetail
-                    }
-                }
-                else {
-                    $errorMessage = $errorObjectConverted.detail
-                }
-            }
-            else {
-                $errorMessage = $ErrorObject
-            }
-        }
-        catch {
-            $errorMessage = $ErrorObject
-        }
-
-        Write-Output $errorMessage
+        throw $_
     }
 }
 #endregion functions
 
-# Get current Zenya account
+#region Account mapping
+$account = [PSCustomObject]$actionContext.Data
+
+# If option to set department isn't toggled, remove from account object
+if ($false -eq $actionContext.Configuration.setDepartment) {
+    $account.PSObject.Properties.Remove("Department")
+}
+
+# If option to set manager isn't toggled, remove from account object
+if ($false -eq $actionContext.Configuration.setManager) {
+    $account.PSObject.Properties.Remove("Manager")
+}
+#endregion Account mapping
+
 try {
-    if ($null -eq $aRef.id) {
-        throw "No Account Reference found in HelloID"
+    # Create authorization headers
+    try {
+        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
     }
+    catch {
+        $ex = $PSItem
+        $errorMessage = Get-ErrorMessage -ErrorObject $ex
 
-    $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
+        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
 
-    Write-Verbose "Querying Zenya account with id $($aRef.id)"
-    $splatWebRequest = @{
-        Uri     = "$baseUrl/scim/users/$($aRef.id)"
-        Headers = $headers
-        Method  = 'GET'
-    }
-    $currentAccount = $null
-    $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-    if ($null -eq $currentAccount.id) {
-        throw "No User found in Zenya with id $($aRef.id)"
-    }
-
-    #Verify if the account must be updated
-    $splatCompareProperties = @{
-        ReferenceObject  = @( ($currentAccount | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty id, meta, emails).PSObject.Properties )
-        DifferenceObject = @( ($account | Select-Object *, @{ Name = 'emailValues'; Expression = { $_.emails } } -ExcludeProperty schemas, emails).PSObject.Properties )
-    }
-
-    $propertiesChanged = (Compare-Object @splatCompareProperties -PassThru).Where( { $_.SideIndicator -eq '=>' })
-    if ($propertiesChanged) {
-        Write-Verbose "Account property(s) required to update: [$($propertiesChanged.name -join ",")]"
-        $updateAction = 'Update'
-    }
-    else {
-        $updateAction = 'NoChanges'
-    }
-
-}
-catch {
-    $ex = $PSItem
-    if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
-        $errorObject = Resolve-HTTPError -Error $ex
-
-        $verboseErrorMessage = $errorObject.ErrorMessage
-
-        $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
-    }
-
-    # If error message empty, fall back on $ex.Exception.Message
-    if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
-        $verboseErrorMessage = $ex.Exception.Message
-    }
-    if ([String]::IsNullOrEmpty($auditErrorMessage)) {
-        $auditErrorMessage = $ex.Exception.Message
-    }
-
-    Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
-
-    if ($auditErrorMessage -Like "No User found in Zenya with id $($aRef.id)" -or $auditErrorMessage -Like "*(404) Not Found.*" -or $auditErrorMessage -Like "*User not found*") {
-        if (-Not($dryRun -eq $True)) {
-            $success = $false
-            $auditLogs.Add([PSCustomObject]@{
-                    Action  = "UpdateAccount"
-                    Message = "No Zenya account found with id $($aRef.id). Possibly deleted."
-                    IsError = $true
-                })
-        }
-        else {
-            Write-Warning "DryRun: No Zenya account found with id $($aRef.id). Possibly deleted."
-        }        
-    }
-    else {
-        $success = $false  
-        $auditLogs.Add([PSCustomObject]@{
-                Action  = "UpdateAccount"
-                Message = "Error querying Zenya account with id $($aRef.id). Error Message: $auditErrorMessage"
-                IsError = $True
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
+                IsError = $true
             })
-    }
-}
 
-# Update Zenya account
-if ($null -ne $currentAccount.id) {
+        # Throw terminal error
+        throw
+    }
+
+    # Get current account
+    try {
+        Write-Verbose "Querying account with id [$($actionContext.References.Account.Id)]"
+        $splatWebRequest = @{
+            Uri             = "$baseUrl/scim/users/$($actionContext.References.Account.Id)"
+            Headers         = $headers
+            Method          = 'GET'
+            ContentType     = "application/json;charset=utf-8"
+            UseBasicParsing = $true
+        }
+
+        $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
+
+        if (($currentAccount | Measure-Object).count -gt 1) {
+            throw "Multiple accounts found with id [$($actionContext.References.Account.Id)]. Please correct this so the accounts are unique."
+        }
+        elseif (($currentAccount | Measure-Object).count -eq 0) {
+            throw "No account found with id [$($actionContext.References.Account.Id)]."
+        }
+    }
+    catch {
+        $ex = $PSItem
+        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+
+        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
+        Write-Verbose "URI: $($splatWebRequest.Uri)"
+
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw
+    }
+
+    # Calculate changes
+    try {
+        if (($currentAccount | Measure-Object).count -eq 1) {
+            Write-Verbose "Calculating changes"
+
+            # Create previous account object to compare current data with specified account data - Only keep properties that are mapped
+            [PSCustomObject]$previousAccount = $currentAccount | Select-Object $account.PSObject.Properties.Name
+
+            # Add email as custom object to account object
+            if ($null -ne $currentAccount.Emails) {
+                $emailsObject = [System.Collections.ArrayList]@()
+                foreach ($email in $currentAccount.Emails) {
+                    if ($email.type -eq "work") {
+                        [void]$emailsObject.Add("work:$($email.value)")
+                    }
+                }
+                $previousAccount | Add-Member -MemberType NoteProperty -Name emails -Value $emailsObject -Force
+            }
+
+            # Add department from the extension to previous account object
+            if ($true -eq $actionContext.Configuration.setDepartment) {
+                $currentAccountDepartmentObject = $currentAccount."urn:ietf:params:scim:schemas:extension:enterprise:2.0:User".Department
+                $previousAccount | Add-Member -MemberType NoteProperty -Name "Department" -Value $currentAccountDepartmentObject -Force
+            }
+
+            # Add manager from the extension to previous account object
+            if ($true -eq $actionContext.Configuration.setManager) {
+                $currentAccountManagerObject = @{
+                    value = $currentAccount."urn:ietf:params:scim:schemas:extension:enterprise:2.0:User".Manager.Value
+                }
+                $previousAccount | Add-Member -MemberType NoteProperty -Name "Manager" -Value $currentAccountManagerObject -Force
+            }
+
+            # Calculate changes between current data and provided data
+            # Create reference object with lowercase property names
+            $referenceObject = [PSCustomObject]@{}
+            foreach ($property in $previousAccount.PSObject.Properties) {
+                $referenceObject  | Add-Member -MemberType NoteProperty -Name $property.Name.ToLower() -Value $property.Value
+            }
+
+            # Create difference object with lowercase property names
+            $differenceObject = [PSCustomObject]@{}
+            foreach ($property in $account.PSObject.Properties) {
+                $differenceObject | Add-Member -MemberType NoteProperty -Name $property.Name.ToLower() -Value $property.Value
+            }
+            
+            $splatCompareProperties = @{
+                ReferenceObject  = @($referenceObject.PSObject.Properties)
+                DifferenceObject = @($differenceObject.PSObject.Properties)
+            }
+
+            $changedProperties = $null
+            $changedProperties = (Compare-Object @splatCompareProperties -PassThru)
+            $oldProperties = $changedProperties.Where( { $_.SideIndicator -eq '<=' })
+            $newProperties = $changedProperties.Where( { $_.SideIndicator -eq '=>' })
+
+            if (($newProperties | Measure-Object).Count -ge 1) {
+                Write-Verbose "Changed properties: $($changedProperties | ConvertTo-Json)."
+
+                $updateAction = 'Update'
+            }
+            else {
+                Write-Verbose "No changed properties."
+
+                $updateAction = 'NoChanges'
+            }
+
+            Write-Verbose "Successfully calculated changes."
+        }
+    }
+    catch {
+        $ex = $PSItem
+        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+
+        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
+        Write-Verbose "URI: $($splatWebRequest.Uri)"
+
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = "Error calculating changes. Error Message: $($errorMessage.AuditErrorMessage)"
+                IsError = $true
+            })
+
+        # Throw terminal error
+        throw
+    }
+
+    # Update account
     switch ($updateAction) {
         'Update' {
             try {
-                Write-Verbose "Updating Zenya account $($currentAccount.userName) ($($currentAccount.id))"
+                # Create custom object with old and new values
+                $changedPropertiesObject = [PSCustomObject]@{
+                    OldValues = @{}
+                    NewValues = @{}
+                }
 
-                $bodyUpdate = [PSCustomObject]@{
+                # Add the old properties to the custom object with old and new values
+                foreach ($oldProperty in ($oldProperties | Where-Object { $_.Name -in $newProperties.Name })) {
+                    $changedPropertiesObject.OldValues.$($oldProperty.Name) = $oldProperty.Value
+                }
+
+                # Add the new properties to the custom object with old and new values
+                foreach ($newProperty in $newProperties) {
+                    $changedPropertiesObject.NewValues.$($newProperty.Name) = $newProperty.Value
+                }
+                Write-Verbose "Changed properties object: $($changedPropertiesObject | ConvertTo-Json)"
+
+                # Create account body and set with default properties and values
+                $accountBody = [PSCustomObject]@{
                     id         = $currentAccount.id
                     operations = @()
                 }
 
-                foreach ($property in $propertiesChanged) {
-                    # Additional mapping for email object
-                    if ($property.Name -eq 'emailValues') {
-                        $bodyUpdate.operations += @{      
+                # Add the updated properties to account body
+                foreach ($newProperty in $newProperties) {
+                    # Add department as extension property to account body
+                    if ($newProperty.Name -eq "Department") {
+                        $accountBody.operations += @{ 
                             op    = "replace"
-                            path  = "emails[type eq `"$($property.Value.type)`"].value"
-                            value = $property.Value.value
+                            path  = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:Department"
+                            value = $newProperty.Value
                         }
                     }
-                    elseif ($property.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
-                        foreach ($key in $property.Value.Keys) {
-                            if ($key -eq "manager") {
-                                $bodyUpdate.operations += @{
+                    # Add manager as extension property to account body
+                    elseif ($newProperty.Name -eq "Manager") {
+                        $accountBody.operations += @{ 
+                            op    = "replace"
+                            path  = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:Manager"
+                            value = $newProperty.Value
+                        }
+                    }
+                    # Transform and add emails to account body
+                    elseif ($newProperty.Name -eq "Emails") {
+                        foreach ($email in $newProperty.Value) {
+                            if ($email.StartsWith("work:")) {
+                                $accountBody.operations += @{      
                                     op    = "replace"
-                                    path  = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:$($key)"
-                                    value = $property.Value."$($key)".Value
-                                }
-                            }
-                            elseif ($key -eq "department") {
-                                $bodyUpdate.operations += @{
-                                    op    = "replace"
-                                    path  = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:$($key)"
-                                    value = $property.Value."$($key)"
+                                    path  = "emails[type eq `"work`"].value"
+                                    value = $email -replace "work:", ""
                                 }
                             }
                         }
                     }
                     else {
-                        $bodyUpdate.operations += @{
+                        $accountBody.operations += @{
                             op    = "replace"
-                            path  = $property.name
-                            value = $property.value
+                            path  = $newProperty.name
+                            value = $newProperty.value
                         }
                     }
                 }
-                $body = ($bodyUpdate | ConvertTo-Json -Depth 10)
 
+                $body = ($accountBody | ConvertTo-Json -Depth 10)
                 $splatWebRequest = @{
-                    Uri     = "$baseUrl/scim/users/$($currentAccount.id)"
-                    Headers = $headers
-                    Method  = 'PATCH'
-                    Body    = ([System.Text.Encoding]::UTF8.GetBytes($body)) 
+                    Uri             = "$baseUrl/scim/users/$($currentAccount.Id)"
+                    Headers         = $headers
+                    Method          = 'PATCH'
+                    Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
+                    ContentType     = "application/json;charset=utf-8"
+                    UseBasicParsing = $true
                 }
 
-                if (-not($dryRun -eq $true)) {
-                    $updatedUser = Invoke-RestMethod @splatWebRequest -Verbose:$false
-                    $aRef = [PSCustomObject]@{
-                        id       = $updatedUser.id
-                        userName = $updatedUser.userName
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Updating account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Body: $body"
+    
+                    $updatedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
+                    # Set the correct account reference
+                    $outputContext.AccountReference = [PSCustomObject]@{
+                        Id       = $updatedAccount.id
+                        Username = $updatedAccount.userName
                     }
-
-                    $auditLogs.Add([PSCustomObject]@{
-                            Action  = "UpdateAccount"
-                            Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) Properties updated: [$($propertiesChanged.name -join ",")]"
+    
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Successfully updated account [$($currentAccount.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json -Depth 10). New values: $($changedPropertiesObject.newValues | ConvertTo-Json -Depth 10)"
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would update Zenya account $($currentAccount.userName) ($($currentAccount.id)). Properties to update: [$($propertiesChanged.name -join ",")]"
+                    Write-Warning "DryRun: Would update account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Old values: $($changedPropertiesObject.oldValues | ConvertTo-Json -Depth 10). New values: $($changedPropertiesObject.newValues | ConvertTo-Json -Depth 10)"
                 }
                 break
             }
             catch {
                 $ex = $PSItem
-                if ( $($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
-                    $errorObject = Resolve-HTTPError -Error $ex
-
-                    $verboseErrorMessage = $errorObject.ErrorMessage
-
-                    $auditErrorMessage = Resolve-ZenyaErrorMessage -ErrorObject $errorObject.ErrorMessage
-                }
-
-                # If error message empty, fall back on $ex.Exception.Message
-                if ([String]::IsNullOrEmpty($verboseErrorMessage)) {
-                    $verboseErrorMessage = $ex.Exception.Message
-                }
-                if ([String]::IsNullOrEmpty($auditErrorMessage)) {
-                    $auditErrorMessage = $ex.Exception.Message
-                }
-
-                Write-Verbose "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($verboseErrorMessage)"
-                
-                $success = $false  
-                $auditLogs.Add([PSCustomObject]@{
-                        Action  = "UpdateAccount"
-                        Message = "Error updating Zenya account $($currentAccount.userName) ($($currentAccount.id)). Error Message: $auditErrorMessage"
-                        IsError = $True
+                $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    
+                Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
+                Write-Verbose "URI: $($splatWebRequest.Uri)"
+                Write-Verbose "Body: $($body)"
+    
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = "Error updating account [$($currentAccount.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
+                        IsError = $true
                     })
+    
+                # Throw terminal error
+                throw
             }
         }
         'NoChanges' {
-            Write-Verbose "No changes to Zenya account $($currentAccount.userName) ($($currentAccount.id))"
-
             if (-not($dryRun -eq $true)) {
-                $aRef = [PSCustomObject]@{
-                    id       = $currentAccount.id
-                    userName = $currentAccount.userName
-                }
+                Write-Verbose "Skipped updating account [$($account.Username)]. Reason: No changes"
 
-                $auditLogs.Add([PSCustomObject]@{
-                        Action  = "UpdateAccount"
-                        Message = "Successfully updated Zenya account $($aRef.userName) ($($aRef.id)) (No Changes needed)"
-                        IsError = $false
-                    })
+                # Set the correct account reference
+                $outputContext.AccountReference = [PSCustomObject]@{
+                    Id       = $currentAccount.id
+                    Username = $currentAccount.userName
+                }
             }
             else {
-                Write-Warning "DryRun: No changes to Zenya account $($currentAccount.userName) ($($currentAccount.id))"
+                Write-Warning "DryRun: Would skip updating account [$($account.Username)]. Reason: No changes"
             }
             break
         }
     }
 }
-
-# Send results
-$result = [PSCustomObject]@{
-    Success    = $success
-    Account    = $account
-    Auditlogs  = $auditLogs
-
-    # Optionally return data for use in other systems
-    ExportData = [PSCustomObject]@{
-        id       = $aRef.id
-        userName = $aRef.userName
+catch {
+    $ex = $PSItem
+    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
+}
+finally {
+    # Check if auditLogs contains errors, if no errors are found, set success to true
+    if (-NOT($outputContext.AuditLogs.IsError -contains $true)) {
+        $outputContext.Success = $true
     }
-} 
-Write-Output $result | ConvertTo-Json -Depth 10
+
+    # Set data with account object
+    $outputContext.Data = $account
+}

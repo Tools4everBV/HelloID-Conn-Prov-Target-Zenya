@@ -1,14 +1,11 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-Delete
+# HelloID-Conn-Prov-Target-Zenya-Permissions-Retrieve
 #
 # Version: 2.0.0
 #####################################################
 
 # Set to false at start, at the end, only when no error occurs it is set to true
 $outputContext.Success = $false
-
-# AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DryRun"
 
 # Set TLS to accept TLS, TLS 1.1 and TLS 1.2
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
@@ -140,9 +137,9 @@ function New-AuthorizationHeaders {
 
         Write-Verbose 'Adding Authorization headers'
         $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        $headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        $headers.Add('Accept', 'application/json')
-        $headers.Add('Content-Type', 'application/json')
+        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
+        [void]$headers.Add('Accept', 'application/json')
+        [void]$headers.Add('Content-Type', 'application/json')
         Write-Output $headers
     }
     catch {
@@ -150,20 +147,6 @@ function New-AuthorizationHeaders {
     }
 }
 #endregion functions
-
-#region Account mapping
-$account = [PSCustomObject]$actionContext.Data
-
-# If option to set department isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setDepartment) {
-    $account.PSObject.Properties.Remove("Department")
-}
-
-# If option to set manager isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setManager) {
-    $account.PSObject.Properties.Remove("Manager")
-}
-#endregion Account mapping
 
 try {
     # Create authorization headers
@@ -186,77 +169,34 @@ try {
         throw
     }
 
-    # Get current account
+    # Get groups
     try {
-        Write-Verbose "Querying account with id [$($actionContext.References.Account.Id)]"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($actionContext.References.Account.Id)"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
+        Write-Verbose "Querying groups"
 
-        $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
+        $groups = [System.Collections.ArrayList]::new()
+        $skip = 0
+        $take = 100
+        do {
+            $splatWebRequest = @{
+                Uri             = "$baseUrl/scim/groups?startIndex=$($skip)&count=$($take)"
+                Headers         = $headers
+                Method          = 'GET'
+                ContentType     = "application/json;charset=utf-8"
+                UseBasicParsing = $true
+            }
 
-        if (($currentAccount | Measure-Object).count -gt 1) {
-            throw "Multiple accounts found with id [$($actionContext.References.Account.Id)]. Please correct this so the accounts are unique."
-        }
-        elseif (($currentAccount | Measure-Object).count -eq 0) {
-            throw "No account found with id [$($actionContext.References.Account.Id)]."
-        }
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
-    
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
+            $response = Invoke-RestMethod @splatWebRequest -Verbose:$false
+            if ($response.Resources -is [array]) {
+                [void]$groups.AddRange($response.Resources)
+            }
+            else {
+                [void]$groups.Add($response.Resources)
+            }
 
-        if ($errorMessage.AuditErrorMessage -Like "*No account found*" -or $errorMessage.AuditErrorMessage -Like "*(404) Not Found.*" -or $errorMessage.AuditErrorMessage -Like "*User not found*") {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped deleting account with id [$($actionContext.References.Account.Id)]. Reason: No longer exists"
-                    IsError = $false
-                })
-        }
-        else {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
+            $skip += $pageSize
+        } while (($groups | Measure-Object).Count -lt $response.totalResults)
 
-            # Throw terminal error
-            throw
-        }
-    }
-    
-    # Delete account
-    try {
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($currentAccount.id)"
-            Headers         = $headers
-            Method          = 'DELETE'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-
-        if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
-
-            $deletedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Successfully deleted account [$($account.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10)."
-                    IsError = $false
-                })
-        }
-        else {
-            Write-Warning "DryRun: Would delete account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
-        }
-        break
+        Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
     }
     catch {
         $ex = $PSItem
@@ -264,26 +204,26 @@ try {
 
         Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
         Write-Verbose "URI: $($splatWebRequest.Uri)"
-        Write-Verbose "Body: $($body)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
 
         # Throw terminal error
-        throw
+        throw "Error querying groups. Error Message: $($errorMessage.AuditErrorMessage)"
     }
-
-}
-catch {
-    $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
 }
 finally {
-    # Check if auditLogs contains errors, if no errors are found, set success to true
-    if (-NOT($outputContext.AuditLogs.IsError -contains $true)) {
-        $outputContext.Success = $true
+    # Send results
+    foreach ($group in $groups) {
+        # Shorten DisplayName to max. 100 chars
+        $displayName = "Group - $($group.DisplayName)"
+        $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length)) 
+        $permission = @{
+            DisplayName    = $displayName
+            Identification = @{
+                id   = $group.id
+                Name = $group.displayName
+                Type = "Group"
+            }
+        }
+
+        $outputContext.Permissions.Add($permission)
     }
 }

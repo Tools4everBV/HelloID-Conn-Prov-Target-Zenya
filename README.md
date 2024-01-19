@@ -21,7 +21,9 @@ Repository for HelloID Provisioning Target Connector to Zenya using the SCIM API
   - [Requirements](#requirements)
   - [Introduction](#introduction)
     - [SCIM based API](#scim-based-api)
-    - [Available  actions](#available--actions)
+    - [Available actions](#available-actions)
+    - [Mapping](#mapping)
+    - [Correlation](#correlation)
   - [Getting started](#getting-started)
     - [Create Provider in Zenya](#create-provider-in-zenya)
     - [Allowing user and groups created by Zenya to be returned in the SCIM service](#allowing-user-and-groups-created-by-zenya-to-be-returned-in-the-scim-service)
@@ -37,12 +39,12 @@ Repository for HelloID Provisioning Target Connector to Zenya using the SCIM API
   - Service Address
   - Client ID
   - Client Secret
+- **Concurrent sessions** in HelloID set to a **maximum of 2**! Exceeding this limit may result in timeout errors, as the Zenya SCIM API supports only a specific number of requests per minute.
 
 ## Introduction
 For this connector we have the option to create and manage Zenya user accounts and groups.
 
 ### SCIM based API
-
 SCIM stands for _System for Cross-domain Identity Management_. It is an open standard protocol that simplifies the management of user identities and related information across different systems and domains. For more information, please see: http://www.simplecloud.info
 
 The HelloID connector uses the API endpoints listed in the table below.
@@ -52,21 +54,41 @@ The HelloID connector uses the API endpoints listed in the table below.
 | /scim/users  | API docs for Get Request: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest  |
 | /scim/groups | API docs for Get Request: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetgroupsRequest |
 
-### Available  actions
+### Available actions
 The HelloID connector consists of the template scripts shown in the following table.
 
-| Action               | Action(s) Performed                                    | Comment                                                                      |
-| -------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| create.ps1           | Create (or update) and correlate a user account.       |                                                                              |
-| enable.ps1           | Enable a user account                                  |                                                                              |
-| update.ps1           | Update a user account                                  |                                                                              |
-| disable.ps1          | Disable a user account                                 |                                                                              |
-| delete.ps1           | Delete a user account                                  | Be careful when implementing this! There is no way to restore deleted users. |
-| permissions.ps1      | Retrieves all groups and provides them as entitlements |                                                                              |
-| grantPermission.ps1  | Add a user account to a group                          |                                                                              |
-| revokePermission.ps1 | Remove a user account from a group                     |                                                                              |
-| revokePermission.ps1 | Remove a user account from a group                     |                                                                              |
-| resourceCreation.ps1 | Create a group for provided resource, e.g. department  |                                                                              |
+| Action                 | Action(s) Performed                                    | Comment                                                                      |
+| ---------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| create.ps1             | Create (or update) and correlate a user account.       |                                                                              |
+| enable.ps1             | Enable a user account                                  |                                                                              |
+| update.ps1             | Update a user account                                  |                                                                              |
+| disable.ps1            | Disable a user account                                 |                                                                              |
+| delete.ps1             | Delete a user account                                  | Be careful when implementing this! There is no way to restore deleted users. |
+| permissions.ps1        | Retrieves all groups and provides them as entitlements |                                                                              |
+| grantPermission.ps1    | Add a user account to a group                          |                                                                              |
+| revokePermission.ps1   | Remove a user account from a group                     |                                                                              |
+| dynamicPermissions.ps1 | Add/remove a user account to/from a group              |                                                                              |
+| resourceCreation.ps1   | Create a group for provided resource, e.g. department  |                                                                              |
+
+### Mapping
+The mandatory and recommended field mapping is listed below.
+
+| Name        | Type  | Create | Enable | Update | Disable | Delete | Use in Notifications | Store in account data | Default mapping                                                                  | Mandatory | Comment                                                                                                                        |
+| ----------- | ----- | ------ | ------ | ------ | ------- | ------ | -------------------- | --------------------- | -------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Active      | Text  | X      | X      |        | X       |        | No                   | Yes                   | For create: Fixed: False<br>For enable: Fixed: True<br>For disable: Fixed: False | Yes       |                                                                                                                                |
+| Department  | Text  | X      |        | X      |         |        | No                   | Yes                   | Field: PrimaryContract.Department.DisplayName                                    | No        | Custom scripting in code to transform this to the corresponding scim object                                                    |
+| DisplayName | Text  | X      |        | X      |         |        | No                   | Yes                   | Complex: [displayName.js](mapping/displayName.js)                                | Yes       |                                                                                                                                |
+| Emails      | Array | X      |        | X      |         |        | No                   | Yes                   | Complex: [emails.js](mapping/emails.js)                                          | Yes       | Custom scripting in code to transform this to the corresponding scim object                                                    |
+| ExternalId  | Text  | X      |        | X      |         |        | No                   | Yes                   | Field: ExternalId                                                                | Yes       |                                                                                                                                |
+| Manager     | Text  | X      |        | X      |         |        | No                   | Yes                   | None                                                                             | No        | Set within script, as the aRef of manager is used. Custom scripting in code to transform this to the corresponding scim object |
+| Title       | Text  | X      |        | X      |         |        | No                   | Yes                   | Field: PrimaryContract.Title.Name                                                | No        |                                                                                                                                |
+| Username    | Text  | X      |        | X      |         |        | No                   | Yes                   | Complex: [username.js](mapping/username.js)                                      | Yes       | Used for correlation                                                                                                           |
+
+### Correlation
+| Correlation field         | Selection | Comment                                                                                                 |
+| ------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
+| Person Correlation field  | None      | No selection, as this isn't used. Only the Account correlation field is used.                           |
+| Account Correlation field | Username  | ExternalId isn't available to query users on, therefore only username can be used as correlation field. |
 
 <!-- GETTING STARTED -->
 ## Getting started
