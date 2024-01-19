@@ -39,12 +39,12 @@ Repository for HelloID Provisioning Target Connector to Zenya using the SCIM API
   - Service Address
   - Client ID
   - Client Secret
+- **Concurrent sessions** in HelloID set to a **maximum of 2**! Exceeding this limit may result in timeout errors, as the Zenya SCIM API supports only a specific number of requests per minute.
 
 ## Introduction
 For this connector we have the option to create and manage Zenya user accounts and groups.
 
 ### SCIM based API
-
 SCIM stands for _System for Cross-domain Identity Management_. It is an open standard protocol that simplifies the management of user identities and related information across different systems and domains. For more information, please see: http://www.simplecloud.info
 
 The HelloID connector uses the API endpoints listed in the table below.
