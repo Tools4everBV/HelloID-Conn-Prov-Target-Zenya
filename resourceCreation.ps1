@@ -26,6 +26,9 @@ $clientSecret = $actionContext.Configuration.clientSecret
 # Define correlation property of groups - This has to be unique
 $correlationProperty = "externalId"
 
+# Check if correlationproperty exists
+$groupsCreated = New-Object System.Collections.Generic.List[System.Object]
+
 #region functions
 function Resolve-ZenyaErrorMessage {
     [CmdletBinding()]
@@ -226,7 +229,7 @@ try {
             $group = $groupsGrouped["$($correlationValue)"]
             
             # If resource does not exist
-            if ($null -eq $group) {
+            if ($null -eq $group -and -not($groupsCreated.Contains($correlationValue))) {
                 <# Resource creation preview uses a timeout of 30 seconds
                 while actual run has timeout of 10 minutes #>
                 # Example: Department (department differs from other objects as the property for the name is "DisplayName", not "Name")
@@ -250,6 +253,8 @@ try {
                     Write-Verbose "Creating group [$($correlationValue)]. Body: $body"
 
                     $createdGroup = Invoke-RestMethod @splatWebRequest -Verbose:$false
+
+                    $groupsCreated.Add($correlationValue)
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
