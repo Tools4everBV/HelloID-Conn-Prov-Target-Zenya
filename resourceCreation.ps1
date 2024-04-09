@@ -226,7 +226,9 @@ try {
             Write-Verbose "Querying group that matches filter [$($filter)]"
 
             $group = $null
-            $group = $groupsGrouped["$($correlationValue)"]
+            if($groupsGrouped -ne $null){
+                $group = $groupsGrouped["$($correlationValue)"]
+            }
             
             # If resource does not exist
             if ($null -eq $group -and -not($groupsCreated.Contains($correlationValue))) {
