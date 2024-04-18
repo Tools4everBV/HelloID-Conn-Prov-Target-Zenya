@@ -189,7 +189,7 @@ try {
                 [void]$groups.Add($response.Resources)
             }
 
-            $skip += $pageSize
+            $skip += $take
         } while (($groups | Measure-Object).Count -lt $response.totalResults)
 
         # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
