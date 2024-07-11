@@ -34,7 +34,6 @@ Repository for HelloID Provisioning Target Connector to Zenya using the SCIM API
 
 ## Requirements
 - **SSO** configured on Zenya environment
-- Required to run **On-Premises** since it is not allowed to import a module with the Cloud Agent.
 - A **Registered Provider in Zenya**. Please see the Zenya Documentation (step 3) for the "How To": [Create Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
   - Service Address
   - Client ID
