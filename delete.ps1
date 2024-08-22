@@ -1,17 +1,10 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Delete
-#
+# Delete account
 # Version: 2.0.0
 #####################################################
-
-# Set to false at start, at the end, only when no error occurs it is set to true
-$outputContext.Success = $false
-
-# AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DryRun"
-
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($actionContext.Configuration.isDebug) {
@@ -21,23 +14,32 @@ switch ($actionContext.Configuration.isDebug) {
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Used to connect to Zenya Scim endpoints
-$baseUrl = $actionContext.Configuration.serviceAddress
-$clientId = $actionContext.Configuration.clientId
-$clientSecret = $actionContext.Configuration.clientSecret
-
 #region functions
-function Resolve-ZenyaErrorMessage {
+function Resolve-ZenyaError {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
     )
     process {
-        $errorMessage = ""
-
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
         try {
             $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
 
@@ -53,7 +55,6 @@ function Resolve-ZenyaErrorMessage {
                             if ($null -ne $errorDetailConverted.title) {
                                 $errorMessage = $errorMessage + $errorDetailConverted.title
                             }
-
                         }
                     }
                     catch {
@@ -75,215 +76,211 @@ function Resolve-ZenyaErrorMessage {
         catch {
             $errorMessage = $ErrorObject
         }
-
-        Write-Output $errorMessage
+        Write-Output $httpErrorObj
     }
 }
 
-function Get-ErrorMessage {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $errorMessage = [PSCustomObject]@{
-            VerboseErrorMessage = $null
-            AuditErrorMessage   = $null
+function Convert-StringToBoolean($obj) {
+    if ($obj -is [PSCustomObject]) {
+        foreach ($property in $obj.PSObject.Properties) {
+            $value = $property.Value
+            if ($value -is [string]) {
+                $lowercaseValue = $value.ToLower()
+                if ($lowercaseValue -eq "true") {
+                    $obj.$($property.Name) = $true
+                }
+                elseif ($lowercaseValue -eq "false") {
+                    $obj.$($property.Name) = $false
+                }
+            }
+            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
+                $obj.$($property.Name) = Convert-StringToBoolean $value
+            }
+            elseif ($value -is [System.Collections.IList]) {
+                for ($i = 0; $i -lt $value.Count; $i++) {
+                    $value[$i] = Convert-StringToBoolean $value[$i]
+                }
+                $obj.$($property.Name) = $value
+            }
         }
-
-        try {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
-            $errorMessage.AuditErrorMessage = (Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message) + ". Response Status: $($ErrorObject.Exception.Response.StatusCode)."
-        }
-        catch {
-            Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
-        }
-
-        # If error message empty, fall back on $ex.Exception.Message
-        if ([String]::IsNullOrEmpty($errorMessage.VerboseErrorMessage)) {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.Exception.Message
-        }
-        if ([String]::IsNullOrEmpty($errorMessage.AuditErrorMessage)) {
-            $errorMessage.AuditErrorMessage = $ErrorObject.Exception.Message
-        }
-
-        Write-Output $errorMessage
     }
-}
-
-function New-AuthorizationHeaders {
-    [CmdletBinding()]
-    [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
-    param(
-        [parameter(Mandatory)]
-        [string]
-        $ClientId,
-
-        [parameter(Mandatory)]
-        [string]
-        $ClientSecret
-    )
-    try {
-        Write-Verbose 'Creating Access Token'
-
-        $authorizationurl = "$baseUrl/oauth/token"
-        $authorizationbody = @{
-            "grant_type"                = 'client_credentials'
-            "client_id"                 = $ClientId
-            "client_secret"             = $ClientSecret
-            "token_expiration_disabled" = $false
-        } | ConvertTo-Json -Depth 10
-        $AccessToken = Invoke-RestMethod -uri $authorizationurl -body $authorizationbody -Method Post -ContentType "application/json"
-
-        Write-Verbose 'Adding Authorization headers'
-        $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        $headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        $headers.Add('Accept', 'application/json')
-        $headers.Add('Content-Type', 'application/json')
-        Write-Output $headers
-    }
-    catch {
-        throw $_
-    }
+    return $obj
 }
 #endregion functions
 
-#region Account mapping
-$account = [PSCustomObject]$actionContext.Data
-
-# If option to set department isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setDepartment) {
-    $account.PSObject.Properties.Remove("Department")
-}
-
-# If option to set manager isn't toggled, remove from account object
-if ($false -eq $actionContext.Configuration.setManager) {
-    $account.PSObject.Properties.Remove("Manager")
-}
-#endregion Account mapping
+#region account
+# Define correlation
+$correlationField = "Id"
+$correlationValue = $actionContext.References.Account.Id
+#endRegion account
 
 try {
-    # Create authorization headers
-    try {
-        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    #region Create access token
+    $actionMessage = "creating access token"
 
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
+    $createAccessTokenBody = @{
+        grant_type                = "client_credentials"
+        client_id                 = $actionContext.Configuration.clientId
+        client_secret             = $actionContext.Configuration.clientSecret
+        token_expiration_disabled = $false
     }
 
-    # Get current account
-    try {
-        Write-Verbose "Querying account with id [$($actionContext.References.Account.Id)]"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($actionContext.References.Account.Id)"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-
-        $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-        if (($currentAccount | Measure-Object).count -gt 1) {
-            throw "Multiple accounts found with id [$($actionContext.References.Account.Id)]. Please correct this so the accounts are unique."
-        }
-        elseif (($currentAccount | Measure-Object).count -eq 0) {
-            throw "No account found with id [$($actionContext.References.Account.Id)]."
-        }
+    $createAccessTokenSplatParams = @{
+        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Headers         = $headers
+        Method          = "POST"
+        ContentType     = "application/json"
+        UseBasicParsing = $true
+        Body            = ($createAccessTokenBody | ConvertTo-Json)
+        Verbose         = $false
+        ErrorAction     = "Stop"
     }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+
+    $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
+
+    Write-Verbose "Created access token. Result: $($createAccessTokenResonse | ConvertTo-Json)"
+    #endregion Create access token
+
+    #region Create headers
+    $actionMessage = "creating headers"
+
+    $headers = @{
+        "Authorization" = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
+        "Accept"        = "application/json"
+        "Content-Type"  = "application/json;charset=utf-8"
+    }
+
+    Write-Verbose "Created headers. Result: $($headers | ConvertTo-Json)."
+    #endregion Create headers
+
+    #region Get account
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUserRequest
+    $actionMessage = "querying Zenya account where [$($correlationField)] = [$($correlationValue)]"
+
+    $getZenyaAccountSplatParams = @{
+        Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
+        Headers         = $headers
+        Method          = "GET"
+        ContentType     = "application/json;charset=utf-8"
+        UseBasicParsing = $true
+        Verbose         = $false
+        ErrorAction     = "Stop"
+    }
     
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
+    $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
+    $correlatedAccount = $getZenyaAccountResponse
 
-        if ($errorMessage.AuditErrorMessage -Like "*No account found*" -or $errorMessage.AuditErrorMessage -Like "*(404) Not Found.*" -or $errorMessage.AuditErrorMessage -Like "*User not found*") {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped deleting account with id [$($actionContext.References.Account.Id)]. Reason: No longer exists"
-                    IsError = $false
-                })
+    Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
+    #endregion Get account
+
+    #region Account
+    #region Calulate action
+    $actionMessage = "calculating action"
+    if (($correlatedAccount | Measure-Object).count -eq 1) {
+        $actionAccount = "Delete"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
+        $actionAccount = "NotFound"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
+        $actionAccount = "MultipleFound"
+    }
+    #endregion Calulate action
+
+    #region Process
+    switch ($actionAccount) {
+        "Delete" {
+            #region Delete account
+            # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest
+            $actionMessage = "deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
+
+            $deleteAccountSplatParams = @{
+                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
+                Method      = "DELETE"
+                ContentType = 'application/json; charset=utf-8'
+                Verbose     = $false
+                ErrorAction = "Stop"
+            }
+
+            Write-Verbose "SplatParams: $($deleteAccountSplatParams | ConvertTo-Json)"
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                # Add header after printing splat
+                $deleteAccountSplatParams['Headers'] = $headers
+
+                $deleteAccountResponse = Invoke-RestMethod @deleteAccountSplatParams
+
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = "Deleted account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
+                        IsError = $false
+                    })
+            }
+            else {
+                Write-Warning "DryRun: Would delete account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
+            }
+            #endregion Delete account
+
+            break
         }
-        else {
+
+        "NotFound" {
+            #region No account found
+            $actionMessage = "skipping deleting account"
+        
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
-                    Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
+                    Message = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
                     IsError = $true
                 })
+            #endregion No account found
+
+            break
+        }
+
+        "MultipleFound" {
+            #region Multiple accounts found
+            $actionMessage = "deleting account"
 
             # Throw terminal error
-            throw
+            throw "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this to ensure the correlation results in a single unique account."
+            #endregion Multiple accounts found
+
+            break
         }
     }
-    
-    # Delete account
-    try {
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($currentAccount.id)"
-            Headers         = $headers
-            Method          = 'DELETE'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-
-        if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
-
-            $deletedAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Successfully deleted account [$($account.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10)."
-                    IsError = $false
-                })
-        }
-        else {
-            Write-Warning "DryRun: Would delete account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10)."
-        }
-        break
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-        Write-Verbose "Body: $($body)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error deleting account [$($account.Username)]. AccountReference: $($actionContext.References.Account | ConvertTo-Json -Depth 10). Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
-    }
-
+    #endregion Process
 }
 catch {
     $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-ZenyaError -ErrorObject $ex
+        $auditMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
+        Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+    }
+    else {
+        $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+        Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    }
+
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
 }
 finally {
     # Check if auditLogs contains errors, if no errors are found, set success to true
-    if (-NOT($outputContext.AuditLogs.IsError -contains $true)) {
+    if ($outputContext.AuditLogs.IsError -contains $true) {
+        $outputContext.Success = $false
+    }
+    else {
         $outputContext.Success = $true
+    }
+
+    # Check if accountreference is set, if not set, set this with default value as this must contain a value
+    if ([String]::IsNullOrEmpty($outputContext.AccountReference) -and $actionContext.DryRun -eq $true) {
+        $outputContext.AccountReference = "DryRun: Currently not available"
     }
 }

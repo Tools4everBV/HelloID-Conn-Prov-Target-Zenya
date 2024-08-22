@@ -1,0 +1,175 @@
+{
+  "Version": "v1",
+  "MappingFields": [
+    {
+      "Name": "UserName",
+      "Description": "[Required] The username of the user.\nMost commonly this is either the UserPrincipalName or the EmployeeId.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getUsername(){\\r\\n    let username = Person.Accounts.MicrosoftActiveDirectory.userPrincipalName;\\r\\n\\r\\n    return username;\\r\\n}\\r\\n\\r\\ngetUsername();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "ExternalId",
+      "Description": "[Required] The employee identifier assigned to the user by the organization.\nUsed as Correlation Key and AccountReference.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.ExternalId\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "preferredLanguage",
+      "Description": "[Required] The preferred language of the user.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"nl-NL\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Title",
+      "Description": "[Required] The job title of the user.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.PrimaryContract.Title.Name\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Department",
+      "Description": "[Optional] The department of the user.\nNOTE: The department has to exist in Zenya.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.PrimaryContract.Department.DisplayName\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Active",
+      "Description": "[Required] The account state of the user.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"false\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        },
+        {
+          "MapForActions": [
+            "Enable"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"true\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        },
+        {
+          "MapForActions": [
+            "Disable"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"false\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "DisplayName",
+      "Description": "[Required] The display name of the user.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"// logic to generate the displayName based on name convention.\\r\\n// B    Alexandra van der Wal\\r\\n// P    Alexandra de Vries\\r\\n// BP   Alexandra van der Wal - de Vries\\r\\n// PB   Alexandra de Vries - van der Wal\\r\\nfunction generateDisplayName() {\\r\\n    let firstName = Person.Name.NickName;\\r\\n    let middleName = Person.Name.FamilyNamePrefix;\\r\\n    let lastName = Person.Name.FamilyName;\\r\\n    let middleNamePartner = Person.Name.FamilyNamePartnerPrefix;\\r\\n    let lastNamePartner = Person.Name.FamilyNamePartner;\\r\\n    let convention = Person.Name.Convention;\\r\\n    let nameFormatted = '';\\r\\n\\r\\n    switch (convention) {\\r\\n        case 'B':\\r\\n            // Alexandra van der Wal\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra van der Wal\\r\\n            break;\\r\\n        case 'BP':\\r\\n            // Alexandra van der Wal - de Vries\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra van der Wal\\r\\n\\r\\n            nameFormatted = nameFormatted + ' -' // Alexandra van der Wal -\\r\\n\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { nameFormatted = nameFormatted + ' ' + middleNamePartner } // Alexandra van der Wal - de  \\r\\n            nameFormatted = nameFormatted + ' ' + lastNamePartner; // Alexandra van der Wal - de Vries\\r\\n            break;\\r\\n        case 'P':\\r\\n            // Alexandra de Vries\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { nameFormatted = nameFormatted + ' ' + middleNamePartner } // Alexandra de\\r\\n            nameFormatted = nameFormatted + ' ' + lastNamePartner; // Alexandra de Vries\\r\\n            break;\\r\\n        case 'PB':\\r\\n            // Alexandra de Vries - van der Wal\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { nameFormatted = nameFormatted + ' ' + middleNamePartner } // Alexandra de\\r\\n            nameFormatted = nameFormatted + ' ' + lastNamePartner; // Alexandra de Vries\\r\\n\\r\\n            nameFormatted = nameFormatted + ' -' // Alexandra de Vries -\\r\\n\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra de Vries - van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra de Vries - van der Wal\\r\\n            break;\\r\\n        default:\\r\\n            // Alexandra van der Wal\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra van der Wal\\r\\n            break;\\r\\n    }\\r\\n\\r\\n    return nameFormatted;\\r\\n}\\r\\n\\r\\ngenerateDisplayName();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Manager",
+      "Description": "[Optional] The id of the manager of the user. Read-only.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "None",
+          "Value": "null",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Emails",
+      "Description": "[Required] The email addresses of the user.",
+      "Type": "Array",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getEmails() {\\r\\n    let mail = Person.Accounts.MicrosoftActiveDirectory.mail;\\r\\n\\r\\n    return [\\r\\n        \\\"work:\\\" + mail\\r\\n    ];\\r\\n}\\r\\n\\r\\ngetEmails();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    }
+  ],
+  "UniqueFieldNames": []
+}
