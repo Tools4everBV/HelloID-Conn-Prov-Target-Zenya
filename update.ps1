@@ -114,13 +114,7 @@ $correlationField = "Id"
 $correlationValue = $actionContext.References.Account.Id
 
 $account = [PSCustomObject]$actionContext.Data
-# Remove properties with null-values
-$account.PsObject.Properties | ForEach-Object {
-    # Remove properties with null-values
-    if ($_.Value -eq $null) {
-        $account.PsObject.Properties.Remove("$($_.Name)")
-    }
-}
+
 # Convert the properties containing "TRUE" or "FALSE" to boolean
 $account = Convert-StringToBoolean $account
 
@@ -353,7 +347,7 @@ try {
                 Verbose     = $false
                 ErrorAction = "Stop"
             }
-            
+
             Write-Verbose "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {

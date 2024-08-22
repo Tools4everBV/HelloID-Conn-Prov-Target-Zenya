@@ -114,13 +114,7 @@ $correlationField = $actionContext.CorrelationConfiguration.accountField
 $correlationValue = $actionContext.CorrelationConfiguration.accountFieldValue
 
 $account = [PSCustomObject]$actionContext.Data
-# Remove properties with null-values
-$account.PsObject.Properties | ForEach-Object {
-    # Remove properties with null-values
-    if ($_.Value -eq $null) {
-        $account.PsObject.Properties.Remove("$($_.Name)")
-    }
-}
+
 # Convert the properties containing "TRUE" or "FALSE" to boolean
 $account = Convert-StringToBoolean $account
 
