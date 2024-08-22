@@ -41,7 +41,7 @@ function Resolve-ZenyaError {
             }
         }
         try {
-            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+            $errorObjectConverted = $httpErrorObj.ErrorDetails | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
                 $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
@@ -50,31 +50,31 @@ function Resolve-ZenyaError {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
                         if ($null -ne $errorDetailConverted) {
                             if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.Error.Message
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.Error.Message
                             }
                             if ($null -ne $errorDetailConverted.title) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.title
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.title
                             }
                         }
                     }
                     catch {
-                        $errorMessage = $errorObjectDetail
+                        $httpErrorObj.FriendlyMessage = $errorObjectDetail
                     }
                 }
                 else {
-                    $errorMessage = $errorObjectConverted.detail
+                    $httpErrorObj.FriendlyMessage = $errorObjectConverted.detail
                 }
 
                 if ($null -ne $errorObjectConverted.status) {
-                    $errorMessage = $errorMessage + " (" + $errorObjectConverted.status + ")"
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
             else {
-                $errorMessage = $ErrorObject
+                $httpErrorObj.FriendlyMessage = $ErrorObject
             }
         }
         catch {
-            $errorMessage = $ErrorObject
+            $httpErrorObj.FriendlyMessage = $ErrorObject
         }
         Write-Output $httpErrorObj
     }
@@ -418,12 +418,14 @@ catch {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-ZenyaError -ErrorObject $ex
         $auditMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
-        Write-Warning "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+        $warningMessage = "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
     }
     else {
         $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
-        Write-Warning "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+        $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
+
+    Write-Warning $warningMessage
 
     $outputContext.AuditLogs.Add([PSCustomObject]@{
             # Action  = "" # Optional
