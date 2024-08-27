@@ -1,14 +1,11 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-ResourceCreation
-#
-# Version: 2.0.0
+# HelloID-Conn-Prov-Target-Microsoft-Entra-ID-Resources-Groups
+# Creates groups dynamically based on HR data
+# PowerShell V2
 #####################################################
 
-# Set to false at start, at the end, only when no error occurs it is set to true
-$outputContext.Success = $false
-
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($actionContext.Configuration.isDebug) {
@@ -18,289 +15,291 @@ switch ($actionContext.Configuration.isDebug) {
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Used to connect to Zenya Scim endpoints
-$baseUrl = $actionContext.Configuration.serviceAddress
-$clientId = $actionContext.Configuration.clientId
-$clientSecret = $actionContext.Configuration.clientSecret
-
-# Define correlation property of groups - This has to be unique
-$correlationProperty = "externalId"
-
-# Check if correlationproperty exists
-$groupsCreated = New-Object System.Collections.Generic.List[System.Object]
-
 #region functions
-function Resolve-ZenyaErrorMessage {
+function Resolve-ZenyaError {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
     )
     process {
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
         try {
-            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+            $errorObjectConverted = $httpErrorObj.ErrorDetails | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
                 $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
                 if ($null -ne $errorObjectDetail) {
                     try {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
-
                         if ($null -ne $errorDetailConverted) {
                             if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorDetailConverted.Error.Message
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.Error.Message
+                            }
+                            if ($null -ne $errorDetailConverted.title) {
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.title
                             }
                         }
                     }
                     catch {
-                        $errorMessage = $errorObjectDetail
+                        $httpErrorObj.FriendlyMessage = $errorObjectDetail
                     }
                 }
                 else {
-                    $errorMessage = $errorObjectConverted.detail
+                    $httpErrorObj.FriendlyMessage = $errorObjectConverted.detail
+                }
+
+                if ($null -ne $errorObjectConverted.status) {
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
             else {
-                $errorMessage = $ErrorObject
+                $httpErrorObj.FriendlyMessage = $ErrorObject
             }
         }
         catch {
-            $errorMessage = $ErrorObject
+            $httpErrorObj.FriendlyMessage = $ErrorObject
         }
-
-        Write-Output $errorMessage
+        Write-Output $httpErrorObj
     }
 }
 
-function Get-ErrorMessage {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $errorMessage = [PSCustomObject]@{
-            VerboseErrorMessage = $null
-            AuditErrorMessage   = $null
+function Convert-StringToBoolean($obj) {
+    if ($obj -is [PSCustomObject]) {
+        foreach ($property in $obj.PSObject.Properties) {
+            $value = $property.Value
+            if ($value -is [string]) {
+                $lowercaseValue = $value.ToLower()
+                if ($lowercaseValue -eq "true") {
+                    $obj.$($property.Name) = $true
+                }
+                elseif ($lowercaseValue -eq "false") {
+                    $obj.$($property.Name) = $false
+                }
+            }
+            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
+                $obj.$($property.Name) = Convert-StringToBoolean $value
+            }
+            elseif ($value -is [System.Collections.IList]) {
+                for ($i = 0; $i -lt $value.Count; $i++) {
+                    $value[$i] = Convert-StringToBoolean $value[$i]
+                }
+                $obj.$($property.Name) = $value
+            }
         }
-
-        try {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
-            $errorMessage.AuditErrorMessage = Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message
-        }
-        catch {
-            Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
-        }
-
-        # If error message empty, fall back on $ex.Exception.Message
-        if ([String]::IsNullOrEmpty($errorMessage.VerboseErrorMessage)) {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.Exception.Message
-        }
-        if ([String]::IsNullOrEmpty($errorMessage.AuditErrorMessage)) {
-            $errorMessage.AuditErrorMessage = $ErrorObject.Exception.Message
-        }
-
-        Write-Output $errorMessage
     }
-}
-
-function New-AuthorizationHeaders {
-    [CmdletBinding()]
-    [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
-    param(
-        [parameter(Mandatory)]
-        [string]
-        $ClientId,
-
-        [parameter(Mandatory)]
-        [string]
-        $ClientSecret
-    )
-    try {
-        Write-Verbose 'Creating Access Token'
-
-        $authorizationurl = "$baseUrl/oauth/token"
-        $authorizationbody = @{
-            "grant_type"                = 'client_credentials'
-            "client_id"                 = $ClientId
-            "client_secret"             = $ClientSecret
-            "token_expiration_disabled" = $false
-        } | ConvertTo-Json -Depth 10
-        $AccessToken = Invoke-RestMethod -uri $authorizationurl -body $authorizationbody -Method Post -ContentType "application/json"
-
-        Write-Verbose 'Adding Authorization headers'
-        $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        [void]$headers.Add('Accept', 'application/json')
-        [void]$headers.Add('Content-Type', 'application/json')
-        Write-Output $headers
-    }
-    catch {
-        throw $_
-    }
+    return $obj
 }
 #endregion functions
 
 try {
-    # Create authorization headers
-    try {
-        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    #region Create access token
+    $actionMessage = "creating access token"
 
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
+    $createAccessTokenBody = @{
+        grant_type                = "client_credentials"
+        client_id                 = $actionContext.Configuration.clientId
+        client_secret             = $actionContext.Configuration.clientSecret
+        token_expiration_disabled = $false
     }
 
-    # Get groups
-    try {
-        Write-Verbose "Querying groups"
-        $groups = [System.Collections.ArrayList]::new()
-        $skip = 0
-        $take = 100
-        do {
-            $splatWebRequest = @{
-                Uri             = "$baseUrl/scim/groups?startIndex=$($skip)&count=$($take)"
-                Headers         = $headers
-                Method          = 'GET'
-                ContentType     = "application/json;charset=utf-8"
-                UseBasicParsing = $true
-            }
-
-            $response = Invoke-RestMethod @splatWebRequest -Verbose:$false
-            if ($response.Resources -is [array]) {
-                [void]$groups.AddRange($response.Resources)
-            }
-            else {
-                [void]$groups.Add($response.Resources)
-            }
-
-            $skip += $take
-        } while (($groups | Measure-Object).Count -lt $response.totalResults)
-
-        # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
-        $groupsGrouped = $groups | Group-Object $correlationProperty -AsHashTable -AsString
-
-        Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error querying groups. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
+    $createAccessTokenSplatParams = @{
+        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Headers         = $headers
+        Method          = "POST"
+        ContentType     = "application/json"
+        UseBasicParsing = $true
+        Body            = ($createAccessTokenBody | ConvertTo-Json)
+        Verbose         = $false
+        ErrorAction     = "Stop"
     }
 
-    # In preview only the first 10 items of the SourceData are used
-    foreach ($resource in $resourceContext.SourceData) {
-        Write-Verbose "Checking $($resource)"
-        try {
-            # Example: department_<department externalId>
-            $correlationValue = "department_" + $resource.ExternalId
+    $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
 
-            # Get group to use id to avoid name change issues
-            $filter = "$correlationProperty -eq `"$($correlationValue)`""
-            Write-Verbose "Querying group that matches filter [$($filter)]"
+    Write-Verbose "Created access token. Result: $($createAccessTokenResonse | ConvertTo-Json)"
+    #endregion Create access token
 
-            $group = $null
-            if($groupsGrouped -ne $null){
-                $group = $groupsGrouped["$($correlationValue)"]
-            }
-            
-            # If resource does not exist
-            if ($null -eq $group -and -not($groupsCreated.Contains($correlationValue))) {
-                <# Resource creation preview uses a timeout of 30 seconds
-                while actual run has timeout of 10 minutes #>
-                # Example: Department (department differs from other objects as the property for the name is "DisplayName", not "Name")
-                $groupBody = [PSCustomObject]@{
+    #region Create headers
+    $actionMessage = "creating headers"
+
+    $headers = @{
+        "Authorization" = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
+        "Accept"        = "application/json"
+        "Content-Type"  = "application/json;charset=utf-8"
+    }
+
+    Write-Verbose "Created headers. Result: $($headers | ConvertTo-Json)."
+    #endregion Create headers
+
+    #region Get Groups
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetGroupsRequest
+    $actionMessage = "querying Groups"
+
+    $groups = [System.Collections.ArrayList]@()
+    $skip = 0
+    $take = 100
+    do {
+        $getGroupsSplatParams = @{
+            Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups?startIndex=$($skip)&count=$($take)"
+            Method      = "GET"
+            ContentType = 'application/json; charset=utf-8'
+            Verbose     = $false
+            ErrorAction = "Stop"
+        }
+
+        Write-Verbose "SplatParams: $($getGroupsSplatParams | ConvertTo-Json)"
+
+        # Add header after printing splat
+        $getGroupsSplatParams['Headers'] = $headers
+    
+        $getGroupsResponse = Invoke-RestMethod @getGroupsSplatParams
+
+        if ($getGroupsResponse.Resources -is [array]) {
+            [void]$groups.AddRange($getGroupsResponse.Resources)
+        }
+        else {
+            [void]$groups.Add($getGroupsResponse.Resources)
+        }
+
+        $skip += $take
+    } while (($groups | Measure-Object).Count -lt $getGroupsResponse.totalResults)
+
+    Write-Information "Queried Groups. Result count: $(($groups | Measure-Object).Count)"
+    #endregion Get Groups
+
+    #region Process resources
+    # Ensure the resourceContext data is unique based on ExternalId and DisplayName
+    # and always sorted in the same order (by ExternalId and DisplayName)
+    $resourceData = $resourceContext.SourceData |
+    Select-Object -Property ExternalId, DisplayName -Unique | # Ensure uniqueness
+    Sort-Object -Property @{Expression = { [int]$_.ExternalId } }, DisplayName # Ensure consistent order by sorting ExternalId as integer and then by DisplayName
+
+    # Group on ExternalId to check if group exists (as correlation property has to be unique for a group)
+    $groupsGrouped = $groups | Group-Object -Property externalId -AsHashTable -AsString
+
+    foreach ($resource in $resourceData[0]) {
+        #region get group for resource
+        $actionMessage = "querying group for resource: $($resource | ConvertTo-Json)"
+ 
+        $correlationField = "externalId"
+        $correlationValue = "department_$($resource.ExternalId)"
+
+        $correlatedResource = $null
+        $correlatedResource = $groupsGrouped["$($correlationValue)"]
+        #endregion get group for resource
+        
+        #region Calulate action
+        if (($correlatedResource | Measure-Object).count -eq 0) {
+            $actionResource = "CreateResource"
+        }
+        elseif (($correlatedResource | Measure-Object).count -eq 1) {
+            $actionResource = "CorrelateResource"
+        }
+        #endregion Calulate action
+
+        #region Process
+        switch ($actionResource) {
+            "CreateResource" {
+                #region Create group
+                # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostGroupRequest
+                $actionMessage = "creating group for resource: $($resource | ConvertTo-Json)"
+
+                # Create account body and set with default properties
+                $createGroupBody = [PSCustomObject]@{
                     schemas      = "urn:ietf:params:scim:schemas:core:2.0:Group"
                     external_id  = "department_$($resource.ExternalId)"
-                    display_name = "department_$($resource.DisplayName)"
+                    display_name = "$($resource.DisplayName)"
                 }
 
-                $body = ($groupBody | ConvertTo-Json -Depth 10)
-                $splatWebRequest = @{
-                    Uri             = "$baseUrl/scim/groups"
-                    Headers         = $headers
-                    Method          = 'POST'
-                    Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
-                    ContentType     = "application/json;charset=utf-8"
-                    UseBasicParsing = $true
+                $createGroupSplatParams = @{
+                    Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups"
+                    Method      = "POST"
+                    Body        = ($createGroupBody | ConvertTo-Json -Depth 10)
+                    ContentType = 'application/json; charset=utf-8'
+                    Verbose     = $false
+                    ErrorAction = "Stop"
                 }
+
+                Write-Verbose "SplatParams: $($createGroupSplatParams | ConvertTo-Json)"
 
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Creating group [$($correlationValue)]. Body: $body"
+                    # Add header after printing splat
+                    $createGroupSplatParams['Headers'] = $headers
 
-                    $createdGroup = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-                    $groupsCreated.Add($correlationValue)
+                    $createGroupResponse = Invoke-RestMethod @createGroupSplatParams
+                    $createdGroup = $createGroupResponse
 
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Created group [$($correlationValue)] for resource [$($resource | ConvertTo-Json)]"
+                            Message = "Created group with id [$($createdGroup.id)], displayName [$($createdGroup.displayName)] and externalId [$($createdGroup.externalId)]  for resource: $($resource | ConvertTo-Json)."
                             IsError = $false
                         })
                 }
                 else {
-                    Write-Warning "DryRun: Would create group [$($correlationValue)]. Body: $body"
+                    Write-Warning "DryRun: Would create group with display_name [$($createGroupBody.display_name)] and external_id [$($createGroupBody.external_id)]  for resource: $($resource | ConvertTo-Json)."
                 }
+                #endregion Create group
+
+                break
             }
-            else {
+
+            "CorrelateResource" {
+                #region Correlate group
+                $actionMessage = "correlating to group for resource: $($resource | ConvertTo-Json)"
+
                 if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Skipped creating group [$($correlationValue)]. Reason: Already exists"
+                    Write-Verbose "Correlated to group with id [$($correlatedResource.id)] on [$($correlationField)] = [$($correlationValue)]."
                 }
                 else {
-                    Write-Warning "DryRun: Would skip creating group [$($correlationValue)]. Reason: Already exists"
+                    Write-Warning "DryRun: Would correlate to group with id [$($correlatedResource.id)] on [$($correlationField)] = [$($correlationValue)]."
                 }
+                #endregion Correlate group
+
+                break
             }
         }
-        catch {
-            $ex = $PSItem
-            $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-            Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-            Write-Verbose "URI: $($splatWebRequest.Uri)"
-            Write-Verbose "Body: $($body)"
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error creating group [$($correlationValue)] for resource [$($resource | ConvertTo-Json)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw
-        }
+        #endregion Process
     }
 }
 catch {
     $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-ZenyaError -ErrorObject $ex
+        $auditMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
+        $warningMessage = "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+    }
+    else {
+        $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+        $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    }
+
+    Write-Warning $warningMessage
+    
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
 }
-finally {
+finally { 
     # Check if auditLogs contains errors, if no errors are found, set success to true
     if (-NOT($outputContext.AuditLogs.IsError -contains $true)) {
         $outputContext.Success = $true
