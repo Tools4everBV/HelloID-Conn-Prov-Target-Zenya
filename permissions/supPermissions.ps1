@@ -115,6 +115,14 @@ function Convert-StringToBoolean($obj) {
 #endregion functions
 
 try {
+    #region Verify account reference
+    $actionMessage = "verifying account reference"
+    
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+    #endregion Verify account reference
+
     #region Create access token
     $actionMessage = "creating access token"
 
