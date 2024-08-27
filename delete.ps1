@@ -275,7 +275,7 @@ catch {
     if ($auditMessage -like "*User not found*") {
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Skipped updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
+                Message = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
                 IsError = $false
             })
     }
