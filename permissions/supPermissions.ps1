@@ -1,6 +1,6 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-SubPermissions-Groups
-# Grants/revokes groups dynamically based on person or contract data
+# HelloID-Conn-Prov-Target-Zenya-SubPermissions-Groups-All
+# Grants/revokes All groups
 # Version: 2.0.0
 #####################################################
 # Enable TLS1.2
@@ -208,36 +208,21 @@ try {
 
             Write-Verbose "Contract: $($contract.ExternalId). In condition: $($contract.Context.InConditions)"
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $true)) {
-                # Define correlation property of groups - This has to be unique
-                $correlationField = "externalId"
-
-                # Example: department_<department externalId>
-                $correlationValue = "department_" + $contract.Department.ExternalId
-
-                # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
-                $groupsGrouped = $groups | Group-Object $correlationField -AsHashTable -AsString
-
-                $group = $null
-                $group = $groupsGrouped["$($correlationValue)"]
-
-                if (($group | Measure-Object).count -eq 0) {
+                #region Custom - RS - 27/08/2024 - Match to all groups as this entitlement is specifically created to grant all groups
+                if (($groups | Measure-Object).count -eq 0) {
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
                             Message = "No Group found where [$($correlationField)] = [$($correlationValue)]"
                             IsError = $true
                         })
                 }
-                elseif (($group | Measure-Object).count -gt 1) {
-                    $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
-                            Message = "Multiple Groups found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the groups are unique."
-                            IsError = $true
-                        })
-                }
                 else {
-                    # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
-                    $desiredPermissions["$($group.Id)"] = $group.DisplayName
+                    foreach ($group in $groups) {
+                        # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
+                        $desiredPermissions["$($group.Id)"] = $group.DisplayName
+                    }
                 }
+                #endregion
             }
         }
     }
@@ -290,7 +275,7 @@ try {
                 $revokePermissionResponse = Invoke-RestMethod @revokePermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
+                        Action  = "RevokePermission"
                         Message = "Revoked group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                         IsError = $false
                     })
@@ -354,7 +339,7 @@ try {
                 $grantPermissionResponse = Invoke-RestMethod @grantPermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
+                        Action  = "GrantPermission"
                         Message = "Granted group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                         IsError = $false
                     })
