@@ -1,14 +1,11 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Permissions-Revoke
-#
+# Revoke groupmembership from account
 # Version: 2.0.0
 #####################################################
 
-# Set to false at start, at the end, only when no error occurs it is set to true
-$outputContext.Success = $false
-
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($actionContext.Configuration.isDebug) {
@@ -18,25 +15,34 @@ switch ($actionContext.Configuration.isDebug) {
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Used to connect to Zenya Scim endpoints
-$baseUrl = $actionContext.Configuration.serviceAddress
-$clientId = $actionContext.Configuration.clientId
-$clientSecret = $actionContext.Configuration.clientSecret
-
 #region functions
-function Resolve-ZenyaErrorMessage {
+function Resolve-ZenyaError {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
     )
     process {
-        $errorMessage = ""
-
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
         try {
-            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+            $errorObjectConverted = $httpErrorObj.ErrorDetails | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
                 $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
@@ -45,240 +51,152 @@ function Resolve-ZenyaErrorMessage {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
                         if ($null -ne $errorDetailConverted) {
                             if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.Error.Message
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.Error.Message
                             }
                             if ($null -ne $errorDetailConverted.title) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.title
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.title
                             }
-
                         }
                     }
                     catch {
-                        $errorMessage = $errorObjectDetail
+                        $httpErrorObj.FriendlyMessage = $errorObjectDetail
                     }
                 }
                 else {
-                    $errorMessage = $errorObjectConverted.detail
+                    $httpErrorObj.FriendlyMessage = $errorObjectConverted.detail
                 }
 
                 if ($null -ne $errorObjectConverted.status) {
-                    $errorMessage = $errorMessage + " (" + $errorObjectConverted.status + ")"
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
             else {
-                $errorMessage = $ErrorObject
+                $httpErrorObj.FriendlyMessage = $ErrorObject
             }
         }
         catch {
-            $errorMessage = $ErrorObject
+            $httpErrorObj.FriendlyMessage = $ErrorObject
         }
-
-        Write-Output $errorMessage
+        Write-Output $httpErrorObj
     }
 }
 
-function Get-ErrorMessage {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $errorMessage = [PSCustomObject]@{
-            VerboseErrorMessage = $null
-            AuditErrorMessage   = $null
+function Convert-StringToBoolean($obj) {
+    if ($obj -is [PSCustomObject]) {
+        foreach ($property in $obj.PSObject.Properties) {
+            $value = $property.Value
+            if ($value -is [string]) {
+                $lowercaseValue = $value.ToLower()
+                if ($lowercaseValue -eq "true") {
+                    $obj.$($property.Name) = $true
+                }
+                elseif ($lowercaseValue -eq "false") {
+                    $obj.$($property.Name) = $false
+                }
+            }
+            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
+                $obj.$($property.Name) = Convert-StringToBoolean $value
+            }
+            elseif ($value -is [System.Collections.IList]) {
+                for ($i = 0; $i -lt $value.Count; $i++) {
+                    $value[$i] = Convert-StringToBoolean $value[$i]
+                }
+                $obj.$($property.Name) = $value
+            }
         }
-
-        try {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
-            $errorMessage.AuditErrorMessage = (Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message) + ". Response Status: $($ErrorObject.Exception.Response.StatusCode)."
-        }
-        catch {
-            Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
-        }
-
-        # If error message empty, fall back on $ex.Exception.Message
-        if ([String]::IsNullOrEmpty($errorMessage.VerboseErrorMessage)) {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.Exception.Message
-        }
-        if ([String]::IsNullOrEmpty($errorMessage.AuditErrorMessage)) {
-            $errorMessage.AuditErrorMessage = $ErrorObject.Exception.Message
-        }
-
-        Write-Output $errorMessage
     }
-}
-
-function New-AuthorizationHeaders {
-    [CmdletBinding()]
-    [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
-    param(
-        [parameter(Mandatory)]
-        [string]
-        $ClientId,
-
-        [parameter(Mandatory)]
-        [string]
-        $ClientSecret
-    )
-    try {
-        Write-Verbose 'Creating Access Token'
-
-        $authorizationurl = "$baseUrl/oauth/token"
-        $authorizationbody = @{
-            "grant_type"                = 'client_credentials'
-            "client_id"                 = $ClientId
-            "client_secret"             = $ClientSecret
-            "token_expiration_disabled" = $false
-        } | ConvertTo-Json -Depth 10
-        $AccessToken = Invoke-RestMethod -uri $authorizationurl -body $authorizationbody -Method Post -ContentType "application/json"
-
-        Write-Verbose 'Adding Authorization headers'
-        $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        [void]$headers.Add('Accept', 'application/json')
-        [void]$headers.Add('Content-Type', 'application/json')
-        Write-Output $headers
-    }
-    catch {
-        throw $_
-    }
+    return $obj
 }
 #endregion functions
 
 try {
-    # Create authorization headers
-    try {
-        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    #region Create access token
+    $actionMessage = "creating access token"
 
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
+    $createAccessTokenBody = @{
+        grant_type                = "client_credentials"
+        client_id                 = $actionContext.Configuration.clientId
+        client_secret             = $actionContext.Configuration.clientSecret
+        token_expiration_disabled = $false
     }
 
-    # Get current account
-    try {
-        Write-Verbose "Querying account with id [$($actionContext.References.Account.Id)]"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($actionContext.References.Account.Id)"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-
-        $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-        if (($currentAccount | Measure-Object).count -gt 1) {
-            throw "Multiple accounts found with id [$($actionContext.References.Account.Id)]. Please correct this so the accounts are unique."
-        }
-        elseif (($currentAccount | Measure-Object).count -eq 0) {
-            throw "No account found with id [$($actionContext.References.Account.Id)]."
-        }
+    $createAccessTokenSplatParams = @{
+        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Headers         = $headers
+        Method          = "POST"
+        ContentType     = "application/json"
+        UseBasicParsing = $true
+        Body            = ($createAccessTokenBody | ConvertTo-Json)
+        Verbose         = $false
+        ErrorAction     = "Stop"
     }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+
+    $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
+
+    Write-Verbose "Created access token. Result: $($createAccessTokenResonse | ConvertTo-Json)"
+    #endregion Create access token
+
+    #region Create headers
+    $actionMessage = "creating headers"
+
+    $headers = @{
+        "Authorization" = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
+        "Accept"        = "application/json"
+        "Content-Type"  = "application/json;charset=utf-8"
+    }
+
+    Write-Verbose "Created headers. Result: $($headers | ConvertTo-Json)."
+    #endregion Create headers
+
+    #region Revoke permission
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup
+    $actionMessage = "revoking group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
+
+    # Create permission body
+    $revokePermissionBody = [PSCustomObject]@{
+        schemas    = @("urn:ietf:params:scim:schemas:core:2.0:Group")
+        id         = $actionContext.References.Permission.id
+        operations = @(
+            @{
+                op    = "remove"
+                path  = "members"
+                value = @(
+                    @{
+                        value   = $actionContext.References.Account.Id
+                        display = $actionContext.References.Account.UserName
+                    }
+                )
+            }
+        )
+    }
     
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-
-        if ($errorMessage.AuditErrorMessage -Like "*No account found*" -or $errorMessage.AuditErrorMessage -Like "*(404) Not Found.*" -or $errorMessage.AuditErrorMessage -Like "*User not found*") {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped revoking permission for account with id [$($actionContext.References.Account.Id)]. Reason: No longer exists"
-                    IsError = $false
-                })
-        }
-        else {
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw
-        }
+    $revokePermissionSplatParams = @{
+        Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups/$($actionContext.References.Permission.Id)"
+        Method      = "PATCH"
+        Body        = ($revokePermissionBody | ConvertTo-Json -Depth 10)
+        ContentType = 'application/json; charset=utf-8'
+        Verbose     = $false
+        ErrorAction = "Stop"
     }
 
-    # Revoke permission
-    try {
-        Write-Verbose "Revoking permission to $($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id)) for $($currentAccount.userName) ($($currentAccount.id))"
+    Write-Verbose "SplatParams: $($revokePermissionSplatParams | ConvertTo-Json)"
 
-        # Create permission body
-        $permissionBody = [PSCustomObject]@{
-            schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
-            id         = $actionContext.References.Permission.id
-            operations = @(
-                @{
-                    op    = "remove"
-                    path  = "members"
-                    value = @(
-                        @{
-                            value   = $currentAccount.id
-                            display = $currentAccount.userName
-                        }
-                    )
-                }
-            )
-        }
+    if (-Not($actionContext.DryRun -eq $true)) {
+        # Add header after printing splat
+        $revokePermissionSplatParams['Headers'] = $headers
 
-        $body = ($permissionBody | ConvertTo-Json -Depth 10)
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/groups/$($actionContext.References.Permission.Id)"
-            Headers         = $headers
-            Method          = 'PATCH'
-            Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
-        }
-
-        if (-Not($actionContext.DryRun -eq $true)) {
-            Write-Verbose "Revoking permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-
-            $revokePermission = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Successfully revoked permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-                    IsError = $false
-                })
-        }
-        else {
-            Write-Warning "DryRun: Would revoke permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-        }
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-        Write-Verbose "Body: $($body)"
+        $revokePermissionResponse = Invoke-RestMethod @revokePermissionSplatParams
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Error revoking permission: [$($actionContext.References.Permission.Name) ($($actionContext.References.Permission.id))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
+                Message = "Revoked group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                IsError = $false
             })
-
-        # Throw terminal error
-        throw
     }
+    else {
+        Write-Warning "DryRun: Would revoke group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+    }
+    #endregion Revoke permission
 }
 catch {
     $ex = $PSItem
