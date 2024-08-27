@@ -115,6 +115,14 @@ $correlationValue = $actionContext.References.Account.Id
 #endRegion account
 
 try {
+    #region Verify account reference
+    $actionMessage = "verifying account reference"
+    
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+    #endregion Verify account reference
+
     #region Create access token
     $actionMessage = "creating access token"
 
@@ -288,10 +296,5 @@ finally {
     }
     else {
         $outputContext.Success = $true
-    }
-
-    # Check if accountreference is set, if not set, set this with default value as this must contain a value
-    if ([String]::IsNullOrEmpty($outputContext.AccountReference) -and $actionContext.DryRun -eq $true) {
-        $outputContext.AccountReference = "DryRun: Currently not available"
     }
 }

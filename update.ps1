@@ -115,6 +115,14 @@ $correlationValue = $actionContext.References.Account.Id
 
 $account = [PSCustomObject]$actionContext.Data
 
+# Remove properties of account object with null-values
+$account.PsObject.Properties | ForEach-Object {
+    # Remove properties with null-values
+    if ($_.Value -eq $null) {
+        $account.PsObject.Properties.Remove("$($_.Name)")
+    }
+}
+
 # Convert the properties containing "TRUE" or "FALSE" to boolean
 $account = Convert-StringToBoolean $account
 
@@ -136,6 +144,14 @@ $accountPropertiesToCompare = $account.PsObject.Properties.Name
 #endRegion account
 
 try {
+    #region Verify account reference
+    $actionMessage = "verifying account reference"
+    
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+    #endregion Verify account reference
+
     #region Create access token
     $actionMessage = "creating access token"
 
@@ -376,7 +392,7 @@ try {
             #region No changes
             $actionMessage = "skipping updating account"
 
-            $outputContext.Data = $account
+            $outputContext.Data = $correlatedAccount
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional
@@ -440,10 +456,5 @@ finally {
     }
     else {
         $outputContext.Success = $true
-    }
-
-    # Check if accountreference is set, if not set, set this with default value as this must contain a value
-    if ([String]::IsNullOrEmpty($outputContext.AccountReference) -and $actionContext.DryRun -eq $true) {
-        $outputContext.AccountReference = "DryRun: Currently not available"
     }
 }
