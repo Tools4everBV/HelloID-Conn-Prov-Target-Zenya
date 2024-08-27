@@ -1,14 +1,10 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-DynamicPermissions
-#
+# HelloID-Conn-Prov-Target-Zenya-SubPermissions-Groups
+# Grants/revokes groups dynamically based on person or contract data
 # Version: 2.0.0
 #####################################################
-
-# Set to false at start, at the end, only when no error occurs it is set to true
-$outputContext.Success = $false
-
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($actionContext.Configuration.isDebug) {
@@ -16,36 +12,42 @@ switch ($actionContext.Configuration.isDebug) {
     $false { $VerbosePreference = "SilentlyContinue" }
 }
 $InformationPreference = "Continue"
-$WarningPreference = "Continue" 
-
-# Used to connect to Zenya Scim endpoints
-$baseUrl = $actionContext.Configuration.serviceAddress
-$clientId = $actionContext.Configuration.clientId
-$clientSecret = $actionContext.Configuration.clientSecret
+$WarningPreference = "Continue"
 
 # Determine all the sub-permissions that needs to be Granted/Updated/Revoked
-$currentPermissions = @{ }
+$currentPermissions = @{}
 foreach ($permission in $actionContext.CurrentPermissions) {
     $currentPermissions[$permission.Reference.Id] = $permission.DisplayName
 }
 
-# Define correlation property of groups - This has to be unique
-$correlationProperty = "externalId"
-
 #region functions
-function Resolve-ZenyaErrorMessage {
+function Resolve-ZenyaError {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
     )
     process {
-        $errorMessage = ""
-
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
         try {
-            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+            $errorObjectConverted = $httpErrorObj.ErrorDetails | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
                 $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
@@ -54,274 +56,249 @@ function Resolve-ZenyaErrorMessage {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
                         if ($null -ne $errorDetailConverted) {
                             if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.Error.Message
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.Error.Message
                             }
                             if ($null -ne $errorDetailConverted.title) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.title
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.title
                             }
-
                         }
                     }
                     catch {
-                        $errorMessage = $errorObjectDetail
+                        $httpErrorObj.FriendlyMessage = $errorObjectDetail
                     }
                 }
                 else {
-                    $errorMessage = $errorObjectConverted.detail
+                    $httpErrorObj.FriendlyMessage = $errorObjectConverted.detail
                 }
 
                 if ($null -ne $errorObjectConverted.status) {
-                    $errorMessage = $errorMessage + " (" + $errorObjectConverted.status + ")"
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
             else {
-                $errorMessage = $ErrorObject
+                $httpErrorObj.FriendlyMessage = $ErrorObject
             }
         }
         catch {
-            $errorMessage = $ErrorObject
+            $httpErrorObj.FriendlyMessage = $ErrorObject
         }
-
-        Write-Output $errorMessage
+        Write-Output $httpErrorObj
     }
 }
 
-function Get-ErrorMessage {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $errorMessage = [PSCustomObject]@{
-            VerboseErrorMessage = $null
-            AuditErrorMessage   = $null
+function Convert-StringToBoolean($obj) {
+    if ($obj -is [PSCustomObject]) {
+        foreach ($property in $obj.PSObject.Properties) {
+            $value = $property.Value
+            if ($value -is [string]) {
+                $lowercaseValue = $value.ToLower()
+                if ($lowercaseValue -eq "true") {
+                    $obj.$($property.Name) = $true
+                }
+                elseif ($lowercaseValue -eq "false") {
+                    $obj.$($property.Name) = $false
+                }
+            }
+            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
+                $obj.$($property.Name) = Convert-StringToBoolean $value
+            }
+            elseif ($value -is [System.Collections.IList]) {
+                for ($i = 0; $i -lt $value.Count; $i++) {
+                    $value[$i] = Convert-StringToBoolean $value[$i]
+                }
+                $obj.$($property.Name) = $value
+            }
         }
-
-        try {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
-            $errorMessage.AuditErrorMessage = (Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message) + ". Response Status: $($ErrorObject.Exception.Response.StatusCode)."
-        }
-        catch {
-            Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
-        }
-
-        # If error message empty, fall back on $ex.Exception.Message
-        if ([String]::IsNullOrEmpty($errorMessage.VerboseErrorMessage)) {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.Exception.Message
-        }
-        if ([String]::IsNullOrEmpty($errorMessage.AuditErrorMessage)) {
-            $errorMessage.AuditErrorMessage = $ErrorObject.Exception.Message
-        }
-
-        Write-Output $errorMessage
     }
-}
-
-function New-AuthorizationHeaders {
-    [CmdletBinding()]
-    [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
-    param(
-        [parameter(Mandatory)]
-        [string]
-        $ClientId,
-
-        [parameter(Mandatory)]
-        [string]
-        $ClientSecret
-    )
-    try {
-        Write-Verbose 'Creating Access Token'
-
-        $authorizationurl = "$baseUrl/oauth/token"
-        $authorizationbody = @{
-            "grant_type"                = 'client_credentials'
-            "client_id"                 = $ClientId
-            "client_secret"             = $ClientSecret
-            "token_expiration_disabled" = $false
-        } | ConvertTo-Json -Depth 10
-        $AccessToken = Invoke-RestMethod -uri $authorizationurl -body $authorizationbody -Method Post -ContentType "application/json"
-
-        Write-Verbose 'Adding Authorization headers'
-        $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        [void]$headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        [void]$headers.Add('Accept', 'application/json')
-        [void]$headers.Add('Content-Type', 'application/json')
-        Write-Output $headers
-    }
-    catch {
-        throw $_
-    }
+    return $obj
 }
 #endregion functions
 
 try {
-    # Create authorization headers
-    try {
-        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    #region Create access token
+    $actionMessage = "creating access token"
 
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
+    $createAccessTokenBody = @{
+        grant_type                = "client_credentials"
+        client_id                 = $actionContext.Configuration.clientId
+        client_secret             = $actionContext.Configuration.clientSecret
+        token_expiration_disabled = $false
     }
 
-    # Get groups
-    try {
-        Write-Verbose "Querying groups"
-        $groups = [System.Collections.ArrayList]::new()
-        $skip = 0
-        $take = 100
-        do {
-            $splatWebRequest = @{
-                Uri             = "$baseUrl/scim/groups?startIndex=$($skip)&count=$($take)"
-                Headers         = $headers
-                Method          = 'GET'
-                ContentType     = "application/json;charset=utf-8"
-                UseBasicParsing = $true
-            }
-
-            $response = Invoke-RestMethod @splatWebRequest -Verbose:$false
-            if ($response.Resources -is [array]) {
-                [void]$groups.AddRange($response.Resources)
-            }
-            else {
-                [void]$groups.Add($response.Resources)
-            }
-
-            $skip += $pageSize
-        } while (($groups | Measure-Object).Count -lt $response.totalResults)
-
-        # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
-        $groupsGrouped = $groups | Group-Object $correlationProperty -AsHashTable -AsString
-
-        Write-Information "Successfully queried groups. Result count: $(($groups | Measure-Object).Count)"
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error querying groups. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
+    $createAccessTokenSplatParams = @{
+        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Headers         = $headers
+        Method          = "POST"
+        ContentType     = "application/json"
+        UseBasicParsing = $true
+        Body            = ($createAccessTokenBody | ConvertTo-Json)
+        Verbose         = $false
+        ErrorAction     = "Stop"
     }
 
-    $desiredPermissions = @{ }
+    $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
+
+    Write-Verbose "Created access token. Result: $($createAccessTokenResonse | ConvertTo-Json)"
+    #endregion Create access token
+
+    #region Create headers
+    $actionMessage = "creating headers"
+
+    $headers = @{
+        "Authorization" = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
+        "Accept"        = "application/json"
+        "Content-Type"  = "application/json;charset=utf-8"
+    }
+
+    Write-Verbose "Created headers. Result: $($headers | ConvertTo-Json)."
+    #endregion Create headers
+
+    #region Get Groups
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetGroupsRequest
+    $actionMessage = "querying Groups"
+
+    $groups = [System.Collections.ArrayList]@()
+    $skip = 0
+    $take = 100
+    do {
+        $getGroupsSplatParams = @{
+            Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups?startIndex=$($skip)&count=$($take)"
+            Method      = "GET"
+            ContentType = 'application/json; charset=utf-8'
+            Verbose     = $false
+            ErrorAction = "Stop"
+        }
+
+        Write-Verbose "SplatParams: $($getGroupsSplatParams | ConvertTo-Json)"
+
+        # Add header after printing splat
+        $getGroupsSplatParams['Headers'] = $headers
+    
+        $getGroupsResponse = Invoke-RestMethod @getGroupsSplatParams
+
+        if ($getGroupsResponse.Resources -is [array]) {
+            [void]$groups.AddRange($getGroupsResponse.Resources)
+        }
+        else {
+            [void]$groups.Add($getGroupsResponse.Resources)
+        }
+
+        $skip += $take
+    } while (($groups | Measure-Object).Count -lt $getGroupsResponse.totalResults)
+
+    Write-Information "Queried Groups. Result count: $(($groups | Measure-Object).Count)"
+    #endregion Get Groups
+
+    #region Define desired permissions
+    $actionMessage = "calculating desired permission"
+
+    $desiredPermissions = @{}
     if (-Not($actionContext.Operation -eq "revoke")) {
         # Example: Contract Based Logic:
         foreach ($contract in $personContext.Person.Contracts) {
-            Write-Verbose "Contract in condition: $($contract.Context.InConditions)"
-            if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $True)) {
-                try {
-                    # Example: department_<department externalId>
-                    $correlationValue = "department_" + $contract.Department.ExternalId
+            $actionMessage = "calulating group for resource: $($resource | ConvertTo-Json)"
 
-                    # Get group to use id to avoid name change issues
-                    $filter = "$correlationProperty -eq `"$($correlationValue)`""
-                    Write-Verbose "Querying group that matches filter [$($filter)]"
+            Write-Verbose "Contract: $($contract.ExternalId). In condition: $($contract.Context.InConditions)"
+            if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $true)) {
+                # Define correlation property of groups - This has to be unique
+                $correlationField = "externalId"
 
-                    $group = $null
-                    $group = $groupsGrouped["$($correlationValue)"]
+                # Example: department_<department externalId>
+                $correlationValue = "department_" + $contract.Department.ExternalId
 
-                    if (($group | Measure-Object).count -eq 0) {
-                        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                                # Action  = "" # Optional
-                                Message = "No Group found that matches filter [$($filter)]"
-                                IsError = $true
-                            })
-                    }
-                    elseif (($group | Measure-Object).count -gt 1) {
-                        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                                # Action  = "" # Optional
-                                Message = "Multiple Groups found that matches filter [$($filter)]. Please correct this so the groups are unique."
-                                IsError = $true
-                            })
-                    }
-                    else {
-                        # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
-                        $desiredPermissions["$($group.Id)"] = $group.DisplayName
-                    }
-                }
-                catch {
-                    $ex = $PSItem
-                    $errorMessage = Get-ErrorMessage -ErrorObject $ex
-            
-                    Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-                    Write-Verbose "URI: $($splatWebRequest.Uri)"
-            
+                # Group on correlation property to check if group exists (as correlation property has to be unique for a group)
+                $groupsGrouped = $groups | Group-Object $correlationField -AsHashTable -AsString
+
+                $group = $null
+                $group = $groupsGrouped["$($correlationValue)"]
+
+                if (($group | Measure-Object).count -eq 0) {
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
                             # Action  = "" # Optional
-                            Message = "Error calculation dynamic permissions. Error Message: $($errorMessage.AuditErrorMessage)"
+                            Message = "No Group found where [$($correlationField)] = [$($correlationValue)]"
                             IsError = $true
                         })
-            
-                    # Throw terminal error
-                    throw
+                }
+                elseif (($group | Measure-Object).count -gt 1) {
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Multiple Groups found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the groups are unique."
+                            IsError = $true
+                        })
+                }
+                else {
+                    # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
+                    $desiredPermissions["$($group.Id)"] = $group.DisplayName
                 }
             }
         }
     }
-    Write-Warning ("Existing Permissions: {0}" -f ($eRef.CurrentPermissions.DisplayName | ConvertTo-Json))
+    #endregion Define desired permissions
+
     Write-Warning ("Desired Permissions: {0}" -f ($desiredPermissions.Values | ConvertTo-Json))
+    Write-Warning ("Existing Permissions: {0}" -f ($actionContext.CurrentPermissions.DisplayName | ConvertTo-Json))
 
-    # Get current account
-    try {
-        Write-Verbose "Querying account with id [$($actionContext.References.Account.Id)]"
-        $splatWebRequest = @{
-            Uri             = "$baseUrl/scim/users/$($actionContext.References.Account.Id)"
-            Headers         = $headers
-            Method          = 'GET'
-            ContentType     = "application/json;charset=utf-8"
-            UseBasicParsing = $true
+    #region Compare current with desired permissions and revoke permissions
+    $newCurrentPermissions = @{}
+    foreach ($permission in $currentPermissions.GetEnumerator()) {    
+        if (-Not $desiredPermissions.ContainsKey($permission.Name) -AND $permission.Name -ne "No permissions defined") {
+            #region Revoke permission
+            # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup
+            $actionMessage = "revoking group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
+
+            # Create permission body
+            $revokePermissionBody = [PSCustomObject]@{
+                schemas    = @("urn:ietf:params:scim:schemas:core:2.0:Group")
+                id         = $actionContext.References.Permission.id
+                operations = @(
+                    @{
+                        op    = "remove"
+                        path  = "members"
+                        value = @(
+                            @{
+                                value   = $actionContext.References.Account.Id
+                                display = $actionContext.References.Account.UserName
+                            }
+                        )
+                    }
+                )
+            }
+    
+            $revokePermissionSplatParams = @{
+                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups/$($actionContext.References.Permission.Id)"
+                Method      = "PATCH"
+                Body        = ($revokePermissionBody | ConvertTo-Json -Depth 10)
+                ContentType = 'application/json; charset=utf-8'
+                Verbose     = $false
+                ErrorAction = "Stop"
+            }
+
+            Write-Verbose "SplatParams: $($revokePermissionSplatParams | ConvertTo-Json)"
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                # Add header after printing splat
+                $revokePermissionSplatParams['Headers'] = $headers
+
+                $revokePermissionResponse = Invoke-RestMethod @revokePermissionSplatParams
+
+                $outputContext.AuditLogs.Add([PSCustomObject]@{
+                        # Action  = "" # Optional
+                        Message = "Revoked group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                        IsError = $false
+                    })
+            }
+            else {
+                Write-Warning "DryRun: Would revoke group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+            }
+            #endregion Revoke permission
         }
-
-        $currentAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-        if (($currentAccount | Measure-Object).count -gt 1) {
-            throw "Multiple accounts found with id [$($actionContext.References.Account.Id)]. Please correct this so the accounts are unique."
-        }
-        elseif (($currentAccount | Measure-Object).count -eq 0) {
-            throw "No account found with id [$($actionContext.References.Account.Id)]."
+        else {
+            $newCurrentPermissions[$permission.Name] = $permission.Value
         }
     }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    #endregion Compare current with desired permissions and revoke permissions
 
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-        Write-Verbose "URI: $($splatWebRequest.Uri)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error querying account with id [$($actionContext.References.Account.Id)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
-    }
-
-    # Compare desired with current permissions and grant permissions
+    #region Compare desired with current permissions and grant permissions
     foreach ($permission in $desiredPermissions.GetEnumerator()) {
         $outputContext.SubPermissions.Add([PSCustomObject]@{
                 DisplayName = $permission.Value
@@ -329,158 +306,89 @@ try {
             })
 
         if (-Not $currentPermissions.ContainsKey($permission.Name)) {
-            # Grant permission
-            try {
-                Write-Verbose "Granting permission to $($permission.Value) ($($permission.Name)) for $($currentAccount.userName) ($($currentAccount.id))"
+            #region Grant permission
+            # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup
+            $actionMessage = "granting group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
 
-                # Create permission body
-                $permissionBody = [PSCustomObject]@{
-                    schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
-                    id         = $permission.Name
-                    operations = @(
-                        @{
-                            op    = "add"
-                            path  = "members"
-                            value = @(
-                                @{
-                                    value   = $currentAccount.id
-                                    display = $currentAccount.userName
-                                }
-                            )
-                        }
-                    )
-                }
-
-                $body = ($permissionBody | ConvertTo-Json -Depth 10)
-                $splatWebRequest = @{
-                    Uri             = "$baseUrl/scim/groups/$($permission.Name)"
-                    Headers         = $headers
-                    Method          = 'PATCH'
-                    Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
-                    ContentType     = "application/json;charset=utf-8"
-                    UseBasicParsing = $true
-                }
-
-                if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Granting permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-
-                    $addPermission = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-                    $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
-                            Message = "Successfully granted permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-                            IsError = $false
-                        })
-                }
-                else {
-                    Write-Warning "DryRun: Would grant permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-                }
+            # Create permission body
+            $grantPermissionBody = [PSCustomObject]@{
+                schemas    = @("urn:ietf:params:scim:schemas:core:2.0:Group")
+                id         = $actionContext.References.Permission.id
+                operations = @(
+                    @{
+                        op    = "add"
+                        path  = "members"
+                        value = @(
+                            @{
+                                value   = $actionContext.References.Account.Id
+                                display = $actionContext.References.Account.UserName
+                            }
+                        )
+                    }
+                )
             }
-            catch {
-                $ex = $PSItem
-                $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    
+            $grantPermissionSplatParams = @{
+                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups/$($actionContext.References.Permission.Id)"
+                Method      = "PATCH"
+                Body        = ($grantPermissionBody | ConvertTo-Json -Depth 10)
+                ContentType = 'application/json; charset=utf-8'
+                Verbose     = $false
+                ErrorAction = "Stop"
+            }
 
-                Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-                Write-Verbose "URI: $($splatWebRequest.Uri)"
-                Write-Verbose "Body: $($body)"
+            Write-Verbose "SplatParams: $($grantPermissionSplatParams | ConvertTo-Json)"
+
+            if (-Not($actionContext.DryRun -eq $true)) {
+                # Add header after printing splat
+                $grantPermissionSplatParams['Headers'] = $headers
+
+                $grantPermissionResponse = Invoke-RestMethod @grantPermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         # Action  = "" # Optional
-                        Message = "Error granting permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
-                        IsError = $true
+                        Message = "Granted group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                        IsError = $false
                     })
-
-                # Throw terminal error
-                throw
             }
-        }
+            else {
+                Write-Warning "DryRun: Would grant group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+            }
+            #endregion Grant permission
+        }    
     }
-
-    # Compare current with desired permissions and revoke permissions
-    $newCurrentPermissions = @{ }
-    foreach ($permission in $currentPermissions.GetEnumerator()) {
-        if (-Not $desiredPermissions.ContainsKey($permission.Name) -AND $permission.Name -ne "No Groups Defined") {
-            # Revoke permission
-            try {
-                Write-Verbose "Revoking permission to $($permission.Value) ($($permission.Name)) for $($currentAccount.userName) ($($currentAccount.id))"
-
-                # Create permission body
-                $permissionBody = [PSCustomObject]@{
-                    schemas    = "urn:ietf:params:scim:schemas:core:2.0:Group"
-                    id         = $permission.Name
-                    operations = @(
-                        @{
-                            op    = "remove"
-                            path  = "members"
-                            value = @(
-                                @{
-                                    value   = $currentAccount.id
-                                    display = $currentAccount.userName
-                                }
-                            )
-                        }
-                    )
-                }
-
-                $body = ($permissionBody | ConvertTo-Json -Depth 10)
-                $splatWebRequest = @{
-                    Uri             = "$baseUrl/scim/groups/$($permission.Name)"
-                    Headers         = $headers
-                    Method          = 'PATCH'
-                    Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
-                    ContentType     = "application/json;charset=utf-8"
-                    UseBasicParsing = $true
-                }
-
-                if (-Not($actionContext.DryRun -eq $true)) {
-                    Write-Verbose "Revoking permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-
-                    $revokePermission = Invoke-RestMethod @splatWebRequest -Verbose:$false
-
-                    $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
-                            Message = "Successfully revoked permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-                            IsError = $false
-                        })
-                }
-                else {
-                    Write-Warning "DryRun: Would revoke permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]"
-                }
-            }
-            catch {
-                $ex = $PSItem
-                $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-                Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-                Write-Verbose "URI: $($splatWebRequest.Uri)"
-                Write-Verbose "Body: $($body)"
-
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
-                        Message = "Error revoking permission: [$($permission.Value) ($($permission.Name))] to account: [$($currentAccount.userName) ($($currentAccount.id))]. Error Message: $($errorMessage.AuditErrorMessage)"
-                        IsError = $true
-                    })
-
-                # Throw terminal error
-                throw
-            }
-        }
-        else {
-            $newCurrentPermissions[$permission.Name] = $permission.Value
-        }
-    }
+    #endregion Compare desired with current permissions and grant permissions
 }
 catch {
     $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-ZenyaError -ErrorObject $ex
+        $auditMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
+        $warningMessage = "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+    }
+    else {
+        $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+        $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    }
+
+    Write-Warning $warningMessage
+    
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
 }
-finally {
+finally { 
     # Handle case of empty defined dynamic permissions.  Without this the entitlement will error.
     if ($actionContext.Operation -match "update|grant" -AND $outputContext.SubPermissions.count -eq 0) {
         $outputContext.SubPermissions.Add([PSCustomObject]@{
-                DisplayName = "No Groups Defined"
-                Reference   = [PSCustomObject]@{ Id = "No Groups Defined" }
+                DisplayName = "No permissions defined"
+                Reference   = [PSCustomObject]@{ Id = "No permissions defined" }
             })
+
+        Write-Warning "Skipped granting permissions for account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No permissions defined."
     }
 
     # Check if auditLogs contains errors, if no errors are found, set success to true
