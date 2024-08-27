@@ -1,129 +1,174 @@
 # HelloID-Conn-Prov-Target-Zenya
-Repository for HelloID Provisioning Target Connector to Zenya using the SCIM API
 
-<a href="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber/network/members"><img src="https://img.shields.io/github/forks/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber" alt="Forks Badge"/></a>
-<a href="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber/pulls"><img src="https://img.shields.io/github/issues-pr/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber" alt="Pull Requests Badge"/></a>
-<a href="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber/issues"><img src="https://img.shields.io/github/issues/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber" alt="Issues Badge"/></a>
-<a href="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber/graphs/contributors"><img alt="GitHub contributors" src="https://img.shields.io/github/contributors/Tools4everBV/HelloID-Conn-Prov-Target-MicrosoftTeams-DirectRoutingPhonenumber?color=2b9348"></a>
-
-| :information_source: Information                                                                                                                                                                                                                                                                                                                                                       |
-| :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| This repository contains the connector and configuration code only. The implementer is responsible to acquire the connection details such as username, password, certificate, etc. You might even need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements. |
+> [!IMPORTANT]
+> This repository contains only the connector and configuration code. The implementer is responsible for acquiring connection details such as the username, password, certificate, etc. You may also need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.
 
 <p align="center">
-  <img src="https://www.tools4ever.nl/connector-logos/zenya-logo.png">
-</p
+  <img src="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-Zenya/blob/master/Logo.png?raw=true" alt="Zenya Logo">
+</p>
 
-<!-- TABLE OF CONTENTS -->
 ## Table of Contents
+
 - [HelloID-Conn-Prov-Target-Zenya](#helloid-conn-prov-target-zenya)
   - [Table of Contents](#table-of-contents)
   - [Requirements](#requirements)
+  - [Remarks](#remarks)
+    - [Department Management](#department-management)
+    - [SCIM API Limitations](#scim-api-limitations)
+    - [Manager Field in Field Mapping](#manager-field-in-field-mapping)
   - [Introduction](#introduction)
-    - [SCIM based API](#scim-based-api)
-    - [Available actions](#available-actions)
-    - [Mapping](#mapping)
-    - [Correlation](#correlation)
-  - [Getting started](#getting-started)
-    - [Create Provider in Zenya](#create-provider-in-zenya)
-    - [Allowing user and groups created by Zenya to be returned in the SCIM service](#allowing-user-and-groups-created-by-zenya-to-be-returned-in-the-scim-service)
-    - [Connection settings](#connection-settings)
-    - [Remarks](#remarks)
+    - [Actions](#actions)
+  - [Getting Started](#getting-started)
+    - [Create a Provider in Zenya](#create-a-provider-in-zenya)
+    - [Allowing Users and Groups Created by Zenya to Be Returned in the SCIM Service](#allowing-users-and-groups-created-by-zenya-to-be-returned-in-the-scim-service)
+    - [Provisioning PowerShell V2 connector](#provisioning-powershell-v2-connector)
+      - [Correlation Configuration](#correlation-configuration)
+      - [Field mapping](#field-mapping)
+    - [Connection Settings](#connection-settings)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
 ## Requirements
-- **SSO** configured on Zenya environment
-- A **Registered Provider in Zenya**. Please see the Zenya Documentation (step 3) for the "How To": [Create Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
+
+- **SSO Configuration**: Ensure SSO is configured in the Zenya environment.
+- **Registered Provider in Zenya**: Refer to the Zenya documentation for detailed instructions: [Create Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
   - Service Address
   - Client ID
   - Client Secret
-- **Concurrent sessions** in HelloID set to a **maximum of 2**! Exceeding this limit may result in timeout errors, as the Zenya SCIM API supports only a specific number of requests per minute.
+- **Concurrent Sessions**: Limit HelloID concurrent sessions to a maximum of 2 to avoid timeout errors, as the Zenya SCIM API has a rate limit on the number of requests per minute.
+
+## Remarks
+
+### Department Management
+
+- In Zenya, department names must be unique across the entire hierarchy. Matching is done based on the department name alone, so any duplicates, even in different parts of the structure, will cause issues.
+
+### SCIM API Limitations
+
+- The Zenya SCIM API does not allow for setting or managing user passwords, so Single Sign-On (SSO) is required for user management.
+
+- By default, the SCIM service only returns users and groups that were created by the identity provider or are linked to it. However, Infoland can enable a setting that allows users and groups created within Zenya to be included as well.
+
+- This is particularly important if your users or groups come from multiple sources, such as Active Directory or Zenya itself. To ensure the SCIM service returns all relevant data—not just the users and groups synchronized through HelloID—contact Infoland to configure this setting properly.
+
+- For more information, refer to step 7 in the Zenya documentation: [Zenya Documentation](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
+
+### Manager Field in Field Mapping
+
+- The `Manager` field is optional and represents the manager's ID for the user. This field is read-only.
+
+- **Note:** The `Manager` field uses a "None" mapping because the value is calculated within the scripts. We can only assign a manager who exists in Zenya and was created by HelloID. Before assigning a manager, HelloID must first grant the Account entitlement to the manager.
 
 ## Introduction
-For this connector we have the option to create and manage Zenya user accounts and groups.
 
-### SCIM based API
-SCIM stands for _System for Cross-domain Identity Management_. It is an open standard protocol that simplifies the management of user identities and related information across different systems and domains. For more information, please see: http://www.simplecloud.info
+This connector allows you to update employee information in SDB HR. It is primarily used to write back the email address that HelloID generates for systems like Active Directory or Azure Active Directory.
 
-The HelloID connector uses the API endpoints listed in the table below.
+The following API endpoints are utilized by this connector:
 
-| Endpoint     | Description                                                                                                 |
-| ------------ | ----------------------------------------------------------------------------------------------------------- |
-| /scim/users  | API docs for Get Request: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest  |
-| /scim/groups | API docs for Get Request: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetgroupsRequest |
+| Endpoint                                                                                               | Description          |
+| ------------------------------------------------------------------------------------------------------ | -------------------- |
+| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest)        | Get users (GET)      |
+| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostUserRequest)        | Create user (POST)   |
+| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchUser)         | Update user (PATCH)  |
+| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest) | Delete user (DELETE) |
+| [/scim/groups](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetGroupsRequest)      | Get groups (GET)     |
+| [/scim/groups](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostGroupRequest)      | Create group (POST)  |
+| [/scim/groups/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup)       | Update group (PATCH) |
 
-### Available actions
-The HelloID connector consists of the template scripts shown in the following table.
+### Actions
 
-| Action                 | Action(s) Performed                                    | Comment                                                                      |
-| ---------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| create.ps1             | Create (or update) and correlate a user account.       |                                                                              |
-| enable.ps1             | Enable a user account                                  |                                                                              |
-| update.ps1             | Update a user account                                  |                                                                              |
-| disable.ps1            | Disable a user account                                 |                                                                              |
-| delete.ps1             | Delete a user account                                  | Be careful when implementing this! There is no way to restore deleted users. |
-| permissions.ps1        | Retrieves all groups and provides them as entitlements |                                                                              |
-| grantPermission.ps1    | Add a user account to a group                          |                                                                              |
-| revokePermission.ps1   | Remove a user account from a group                     |                                                                              |
-| dynamicPermissions.ps1 | Add/remove a user account to/from a group              |                                                                              |
-| resourceCreation.ps1   | Create a group for provided resource, e.g. department  |                                                                              |
-
-### Mapping
-The mandatory and recommended field mapping is listed below.
-
-| Name        | Type  | Create | Enable | Update | Disable | Delete | Use in Notifications | Store in account data | Default mapping                                                                  | Mandatory | Comment                                                                                                                        |
-| ----------- | ----- | ------ | ------ | ------ | ------- | ------ | -------------------- | --------------------- | -------------------------------------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Active      | Text  | X      | X      |        | X       |        | No                   | Yes                   | For create: Fixed: False<br>For enable: Fixed: True<br>For disable: Fixed: False | Yes       |                                                                                                                                |
-| Department  | Text  | X      |        | X      |         |        | No                   | Yes                   | Field: PrimaryContract.Department.DisplayName                                    | No        | Custom scripting in code to transform this to the corresponding scim object                                                    |
-| DisplayName | Text  | X      |        | X      |         |        | No                   | Yes                   | Complex: [displayName.js](mapping/displayName.js)                                | Yes       |                                                                                                                                |
-| Emails      | Array | X      |        | X      |         |        | No                   | Yes                   | Complex: [emails.js](mapping/emails.js)                                          | Yes       | Custom scripting in code to transform this to the corresponding scim object                                                    |
-| ExternalId  | Text  | X      |        | X      |         |        | No                   | Yes                   | Field: ExternalId                                                                | Yes       |                                                                                                                                |
-| Manager     | Text  | X      |        | X      |         |        | No                   | Yes                   | None                                                                             | No        | Set within script, as the aRef of manager is used. Custom scripting in code to transform this to the corresponding scim object |
-| Title       | Text  | X      |        | X      |         |        | No                   | Yes                   | Field: PrimaryContract.Title.Name                                                | No        |                                                                                                                                |
-| Username    | Text  | X      |        | X      |         |        | No                   | Yes                   | Complex: [username.js](mapping/username.js)                                      | Yes       | Used for correlation                                                                                                           |
-
-### Correlation
-| Correlation field         | Selection | Comment                                                                                                 |
-| ------------------------- | --------- | ------------------------------------------------------------------------------------------------------- |
-| Person Correlation field  | None      | No selection, as this isn't used. Only the Account correlation field is used.                           |
-| Account Correlation field | Username  | ExternalId isn't available to query users on, therefore only username can be used as correlation field. |
-
-<!-- GETTING STARTED -->
-## Getting started
-
-### Create Provider in Zenya
-Please follow the Zenya Documentation (step 3) to [Create a Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1)
-
-### Allowing user and groups created by Zenya to be returned in the SCIM service
-By default, ONLY groups and users created by the identity provider or linked to it are returned in the SCIM service. However, there is a setting that Infoland can enable per provider, allowing the users and groups created by Zenya to be returned as well. If users/groups come from multiple sources (ADs, created within Zenya itself), please contact Infoland to ensure that the SCIM service returns everything, not just the users/groups synchronized through this process.
-For more information, please see (step 7): https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1
-
-### Connection settings
-The following settings are required to connect to the API.
-
-| Setting              | Description                                                                                                                  | Mandatory |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------- |
-| Service Address      | The Service Address of the SCIM API                                                                                          | Yes       |
-| Client ID            | The OAuth2 Client ID to connect to the SCIM API                                                                              | Yes       |
-| Client Secret        | The OAuth2 Client Secret to connect to the SCIM API                                                                          | Yes       |
-| Toggle debug logging | When toggled, extra logging is shown. Note that this is only meant for debugging, please switch this off when in production. | No        |
+| Action                 | Description                                                | Comment                                        |
+| ---------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
+| `create.ps1`           | Create (or update) and correlate a user account            |                                                |
+| `enable.ps1`           | Enable a user account                                      |                                                |
+| `update.ps1`           | Update a user account                                      |                                                |
+| `disable.ps1`          | Disable a user account                                     |                                                |
+| `delete.ps1`           | Delete a user account                                      | Be cautious; deleted users cannot be restored. |
+| `permissions.ps1`      | Retrieve all groups and provide them as entitlements       |                                                |
+| `grantPermission.ps1`  | Add a user account to a group                              |                                                |
+| `revokePermission.ps1` | Remove a user account from a group                         |                                                |
+| `subPermissions.ps1`   | Add/remove a user account to/from a group                  |                                                |
+| `resourceCreation.ps1` | Create a group for a specified resource (e.g., department) |                                                |
 
 
-### Remarks
-- Infoland must define the current users within the synchronization scope. Failure to do so will result in every person being assigned a new user account.
-- Since we use the SCIM API, we cannot create/set the password of users, so Single Sign-On (SSO) is required to manage the users using the SCIM API.
-- Currently, we can only manage groups we actually created with HelloID. So only the groups we created through HelloID Resource Creation.
-  - Note that HelloID can only create groups. The groups will not be deleted by HelloID.
-- Currently, we can only set a department that already exists in Zenya.
-  - For this, all departments must have a unique name (we can only match on name, so matching on code or any other field is not possible) within the entire tree (i.e., no duplicate names anywhere).
-  - In addition, maintenance of the departments (i.e., creating/deleting as well as setting the owner) will need to take place within Zenya.
-- Currently, we can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first.
+## Getting Started
+
+### Create a Provider in Zenya
+
+To start using the HelloID-Zenya connector, you first need to create a provider in Zenya. Follow these steps:
+
+1. **Access the Zenya Documentation**:
+   - Go to the [Zenya Documentation](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
+
+2. **Follow Step 3**:
+   - Navigate to **Step 3** in the documentation, which provides detailed instructions on how to create a provider in Zenya.
+   - Complete the setup by taking note of the required information, including the **Service Address**, **Client ID**, and **Client Secret**.
+
+### Allowing Users and Groups Created by Zenya to Be Returned in the SCIM Service
+
+By default, the SCIM service only returns users and groups that were created by the identity provider or linked to it. However, you can configure Zenya to also return users and groups that were created within Zenya itself.
+
+Follow these steps:
+
+1. **Contact Infoland**:
+   - Reach out to Infoland to request that the SCIM service returns all users and groups, not just those synchronized through the identity provider.
+
+2. **Enable SCIM Service Setting**:
+   - Ensure that the setting to include Zenya-created users and groups in the SCIM service is enabled. This is particularly important if your environment includes users and groups from multiple sources, such as Active Directory and Zenya itself.
+
+3. **Verify Configuration**:
+   - After Infoland enables this setting, verify that all necessary users and groups are being returned by the SCIM service.
+
+For more detailed information, refer to [Step 7 of the Zenya Documentation](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
+
+### Provisioning PowerShell V2 connector
+
+#### Correlation Configuration
+The correlation configuration specifies which properties are used to match accounts in Zenya with users in HelloID.
+
+To properly set up the correlation:
+
+1. Open the `Correlation` tab.
+
+2. Specify the following configuration:
+
+    | Setting                       | Value      |
+    | ----------------------------- | ---------- |
+    | **Person Correlation Field**  | `UserName` |
+    | **Account Correlation Field** | `Username` |
+
+> [!IMPORTANT]
+> Currently, the **Person Correlation Field** (`UserName`) is not used in the correlation process. Only the **Account Correlation Field** (`Username`) is active because `ExternalId` cannot be queried via the SCIM API. 
+> 
+> **However**, configuring the **Person Correlation Field** is advisable to prepare for future updates, such as the upcoming Governance Module. This module will require person-to-account mappings, so setting this field now helps ensure readiness for future features.
+> 
+> Ensure the **Account Correlation Field** is set to `Username` to align with the SCIM API's capabilities. Verify that your setup is supported by the [SCIM API documentation](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest).
+
+> [!TIP]
+> _For more information on correlation, please refer to our correlation [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems/correlation.html) pages_.
+
+#### Field mapping
+The field mapping can be imported by using the _fieldMapping.json_ file.
+
+### Connection Settings
+
+The following settings are required to connect to the Zenya SCIM API:
+
+| Setting                     | Description                                                                                                                                                                                                                                                                      | Mandatory |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **Service Address**         | The URL of the SCIM API service.                                                                                                                                                                                                                                                 | Yes       |
+| **Client ID**               | The OAuth2 Client ID used to authenticate with the SCIM API.                                                                                                                                                                                                                     | Yes       |
+| **Client Secret**           | The OAuth2 Client Secret used to authenticate with the SCIM API.                                                                                                                                                                                                                 | Yes       |
+| **Set Department in Zenya** | When enabled, this setting will map and set the department value. Note: Only departments that already exist in Zenya can be assigned, and all department names must be unique. Department maintenance (creation, deletion, and owner assignment) must be done directly in Zenya. | No        |
+| **Set Manager in Zenya**    | When enabled, this setting will map and set the manager value. Note: Only managers who exist in Zenya and were created by HelloID can be assigned. Ensure HelloID has granted the Account entitlement to the manager beforehand.                                                 | No        |
+| T**oggle debug logging**    | Displays debug logging when toggled. **Switch off in production**                                                                                                                                                                                                                | No        |
 
 ## Getting help
-> _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/hc/en-us/articles/360012558020-Configure-a-custom-PowerShell-target-system) pages_
+> [!TIP]
+> _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems.html) pages_.
 
-> _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com)_
+> [!TIP]
+>  _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com)_.
 
 ## HelloID docs
 The official HelloID documentation can be found at: https://docs.helloid.com/
