@@ -304,7 +304,7 @@ try {
             }
 
             $createAccountSplatParams = @{
-                Uri         = "$($actionContext.Configuration.serviceAddress)/v1.0/users"
+                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users"
                 Method      = "POST"
                 Body        = ($createAccountBody | ConvertTo-Json -Depth 10)
                 ContentType = 'application/json; charset=utf-8'
