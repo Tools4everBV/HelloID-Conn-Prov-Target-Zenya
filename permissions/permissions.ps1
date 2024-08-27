@@ -182,7 +182,7 @@ try {
     } while (($groups | Measure-Object).Count -lt $getGroupsResponse.totalResults)
 
     Write-Information "Queried Groups. Result count: $(($groups | Measure-Object).Count)"
-    #endregion Get Microsoft Exchange Online Shared Mailboxes
+    #endregion Get Groups
 
     #region Send results to HelloID
     $groups | ForEach-Object {
