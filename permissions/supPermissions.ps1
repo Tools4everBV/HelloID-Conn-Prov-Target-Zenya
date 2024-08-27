@@ -200,6 +200,9 @@ try {
     #region Define desired permissions
     $actionMessage = "calculating desired permission"
 
+    # Group on ExternalId to check if group exists (as correlation property has to be unique for a group)
+    $groupsGrouped = $groups | Group-Object -Property externalId -AsHashTable -AsString
+
     $desiredPermissions = @{}
     if (-Not($actionContext.Operation -eq "revoke")) {
         # Example: Contract Based Logic:
@@ -208,21 +211,33 @@ try {
 
             Write-Verbose "Contract: $($contract.ExternalId). In condition: $($contract.Context.InConditions)"
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $true)) {
-                #region Custom - RS - 27/08/2024 - Match to all groups as this entitlement is specifically created to grant all groups
-                if (($groups | Measure-Object).count -eq 0) {
+                # Get group to use objectGuid to avoid name change issues
+                $correlationField = "externalId"
+
+                # Example: department_<department externalId>
+                $correlationValue = "department_" + $contract.Department.ExternalId
+
+                $group = $null
+                $group = $groupsGrouped["$($correlationValue)"]
+
+                if (($group | Measure-Object).count -eq 0) {
                     $outputContext.AuditLogs.Add([PSCustomObject]@{
-                            # Action  = "" # Optional
+                            Action  = "GrantPermission"
                             Message = "No Group found where [$($correlationField)] = [$($correlationValue)]"
                             IsError = $true
                         })
                 }
-                else {
-                    foreach ($group in $groups) {
-                        # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
-                        $desiredPermissions["$($group.Id)"] = $group.DisplayName
-                    }
+                elseif (($group | Measure-Object).count -gt 1) {
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            Action  = "GrantPermission"
+                            Message = "Multiple Groups found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the groups are unique."
+                            IsError = $true
+                        })
                 }
-                #endregion
+                else {
+                    # Add group to desired permissions with the id as key and the displayname as value (use id to avoid issues with name changes and for uniqueness)
+                    $desiredPermissions["$($group.Id)"] = $group.DisplayName
+                }
             }
         }
     }
