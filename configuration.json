@@ -2,10 +2,10 @@
   {
     "key": "serviceAddress",
     "type": "input",
-    "defaultValue": "",
+    "defaultValue": "https://identitymanagement.services.zenya.work",
     "templateOptions": {
       "label": "Service Address",
-      "placeholder": "https://identitymanagement.services.iprova.nl",
+      "placeholder": "https://identitymanagement.services.zenya.work",
       "description": "The Service Address of the SCIM endpoint",
       "required": true
     }
@@ -40,7 +40,7 @@
     "templateOptions": {
       "label": "Set department in Zenya",
       "required": false,
-      "description": "Please note. Currently, we can only set a department that already exists in Zenya. For this, all departments must have a unique name (we can only match on name, so matching on code or any other field is not possible) within the entire tree (i.e., no duplicate names anywhere). In addition, maintenance of the departments (i.e., creating/deleting as well as setting the owner) will need to take place within Zenya."
+      "description": "Please note: We can only set departments that already exist in Zenya, and all departments must have unique names (matching is by name only). Department maintenance (creation, deletion, setting the owner) must be done in Zenya."
     }
   },
   {
@@ -50,7 +50,7 @@
     "templateOptions": {
       "label": "Set manager in Zenya",
       "required": false,
-      "description": "Please note. Currently, we can only set a manager that exists in Zenya and has been created by HelloID. For this, HelloID has to have granted the Account entitlement for the manager first."
+      "description": "Please note: We can only assign a manager who exists in Zenya and was created by HelloID. HelloID must first grant the Account entitlement to the manager."
     }
   },
   {
