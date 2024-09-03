@@ -217,7 +217,7 @@ try {
     if (($correlatedAccount | Measure-Object).count -eq 1) {
         $actionAccount = "Correlate"
     }
-    elseif (($correlatedAccount | Measure-Object).count -eq 1) {
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
         $actionAccount = "Create"
     }
     elseif (($correlatedAccount | Measure-Object).count -gt 1) {
