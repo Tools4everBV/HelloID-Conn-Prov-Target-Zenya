@@ -4,7 +4,7 @@
 > This repository contains only the connector and configuration code. The implementer is responsible for acquiring connection details such as the username, password, certificate, etc. You may also need to sign a contract or agreement with the supplier before implementing this connector. Please contact the client's application manager to coordinate the connector requirements.
 
 <p align="center">
-  <img src="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-Zenya/blob/master/Logo.png?raw=true" alt="Zenya Logo">
+  <img src="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-Zenya/blob/main/Logo.png?raw=true" alt="Zenya Logo">
 </p>
 
 ## Table of Contents
