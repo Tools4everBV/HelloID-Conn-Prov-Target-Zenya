@@ -194,7 +194,7 @@ try {
     # Group on ExternalId to check if group exists (as correlation property has to be unique for a group)
     $groupsGrouped = $groups | Group-Object -Property externalId -AsHashTable -AsString
 
-    foreach ($resource in $resourceData[0]) {
+    foreach ($resource in $resourceData) {
         #region get group for resource
         $actionMessage = "querying group for resource: $($resource | ConvertTo-Json)"
  
