@@ -12,7 +12,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"function getUsername(){\\r\\n    let username = Person.Accounts._03985284ff47c4c48636a682dd28cb44.userPrincipalName;\\r\\n\\r\\n    return username;\\r\\n}\\r\\n\\r\\ngetUsername();\"",
+          "Value": "\"function getUsername(){\\r\\n    let username = Person.Accounts.MicrosoftActiveDirectory.userPrincipalName;\\r\\n\\r\\n    return username;\\r\\n}\\r\\n\\r\\ngetUsername();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         }
@@ -131,7 +131,7 @@
             "Update"
           ],
           "MappingMode": "Complex",
-          "Value": "\"function getEmails() {\\r\\n    let mail = Person.Accounts._03985284ff47c4c48636a682dd28cb44.mail;\\r\\n\\r\\n    return [\\r\\n        \\\"work:\\\" + mail\\r\\n    ];\\r\\n}\\r\\n\\r\\ngetEmails();\"",
+          "Value": "\"function getEmails() {\\r\\n    let mail = Person.Accounts.MicrosoftActiveDirectory.mail;\\r\\n\\r\\n    return [\\r\\n        \\\"work:\\\" + mail\\r\\n    ];\\r\\n}\\r\\n\\r\\ngetEmails();\"",
           "UsedInNotifications": false,
           "StoreInAccountData": true
         }
