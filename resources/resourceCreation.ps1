@@ -1,5 +1,5 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Microsoft-Entra-ID-Resources-Groups
+# HelloID-Conn-Prov-Target-Zenya-Resources-Groups
 # Creates groups dynamically based on HR data
 # PowerShell V2
 #####################################################
