@@ -41,7 +41,7 @@ Dankzij de integratie met Zenya beschikt HelloID over de benodigde gegevens voor
 
 HelloID maakt gebruik van API’s voor het ophalen en bijwerken van gegevens in Zenya. De IAM-oplossing maakt gebruik van specifieke connectors voor het ophalen van informatie uit en synchroniseren van data met Zenya.
 
-# Gegevensuitwisseling op maat
+## Gegevensuitwisseling op maat
 
 De Zenya Target Connector maakt gegevensuitwisseling tussen Zenya en HelloID mogelijk. Prettig is dat hoewel HelloID het beheer van zowel accounts als autorisaties in belangrijke mate automatiseert, jij altijd aan de knoppen blijft staan. Zo kan je bijvoorbeeld specifieke velden en regels configureren die aansluiten op jouw specifieke behoefte. Bijvoorbeeld door bepaalde gegevensvelden alleen onder specifieke voorwaarden te synchroniseren. Of door het toewijzen van specifieke rollen en rechten automatisch op basis van je bedrijfsstructuur. 
 
