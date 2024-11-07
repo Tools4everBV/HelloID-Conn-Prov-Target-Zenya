@@ -1,5 +1,5 @@
 
-Met behulp van de Zenya Target Connector automatiseer je het beheer van gebruikersaccounts en toegangsrechten in Zenya in belangrijke mate. De connector koppelt Zenya aan de Identity & Access Management (IAM)-oplossing HelloID van Tools4ever. De integratie zorgt dat de informatie in Zenya consistent is met de gegevens in je bronsystemen. Zo til je identity management en gegevenssynchronisatie naar een hoger niveau en automatiseer je dit proces, dat zowel complex, tijdrovend als foutgevoelig kan zijn. In dit artikel lees je meer over deze koppeling, de mogelijkheden en de voordelen.
+Met behulp van de Zenya Target Connector automatiseer in belangrijke mate je het beheer van gebruikersaccounts en toegangsrechten in Zenya. De connector koppelt Zenya aan de Identity & Access Management (IAM)-oplossing HelloID van Tools4ever. De integratie zorgt dat de informatie in Zenya consistent is met de gegevens in je bronsystemen. Zo til je identity management en gegevenssynchronisatie naar een hoger niveau en automatiseer je dit proces, dat zowel complex, tijdrovend als foutgevoelig kan zijn. In dit artikel lees je meer over deze koppeling, de mogelijkheden en de voordelen.
 
 ## Wat is Zenya
 
@@ -20,7 +20,7 @@ De koppeling tussen HelloID en Zenya biedt diverse mogelijkheden. Onder meer wat
 
 *	**Personeelsgegevens:** basisinformatie zoals naam, functie en contractgegevens.
 *	**Contractgegevens:** informatie met betrekking tot de werkrelatie en contractvoorwaarden.
-*	**Organisatiegegevens:** Afdelingsinformatie, locatiegegevens en informatie met betrekking tot de hiërarchische structuur.
+*	**Organisatiegegevens:** afdelingsinformatie, locatiegegevens en informatie met betrekking tot de hiërarchische structuur.
 
 **Werken met formulieren**
 
