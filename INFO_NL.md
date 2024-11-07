@@ -9,8 +9,8 @@ Zenya is software van Infoland voor kwaliteits-, incident- en risicomanagement. 
 
 Het beheren van gebruikersaccount en autorisaties is een complexe en tijdrovende taak. Bij het uitvoeren hiervan kunnen bedrijven dan ook tegen allerlei uitdagingen aanlopen. Denk daarbij aan de foutgevoeligheid bij het handmatig invoeren of muteren van gegevens, maar ook aan tijdrovende processen voor het bijwerken van persoonsgegevens en toegangsniveaus of aan het koppelen van formulieren. Veel organisaties hebben dan ook behoefte aan een betrouwbare, veilige en efficiënte oplossing voor identity management en gegevenssynchronisatie. De Zenya connector maakt een koppeling met veelvoorkomende bronsystemen mogelijk, zoals:
 
-*	Active Directory
-*	Entra ID
+*	AFAS
+*	Visma Raet
 
 Verdere details over de koppeling met deze bronsystemen zijn te vinden verderop in het artikel.
 
@@ -59,8 +59,8 @@ De Zenya Target Connector maakt gegevensuitwisseling tussen Zenya en HelloID mog
 
 HelloID maakt het mogelijk Zenya aan diverse bronsystemen te koppelen. De IAM-oplossing kan hierdoor op basis van gegevens uit je bronsystemen geautomatiseerde mutaties doorvoeren in Zenya, zodat jij hiernaar geen omkijken hebt. Zo neemt HelloID je werk uit handen en tilt het beheer van zowel accounts of permissies naar een hoger niveau. Enkele veelvoorkomende integraties zijn:
 
-* **Active Directory - Zenya koppeling:** De integratie tussen Zenya en Active Directory (AD) zorgt dat gebruikersgegevens en groepslidmaatschappen in Active Directory altijd consistent zijn met Zenya. Vinden er wijzigingen plaats in AD? Dan detecteert HelloID deze mutatie en voert deze wijziging door in Zenya. Zo weet je zeker dat informatie in beide systemen altijd up-to-date en gesynchroniseerd zijn.
+* **AFAS - Zenya koppeling:** De integratie tussen AFAS en Zenya zorgt dat gebruikersgegevens in Zenya altijd consistent zijn met AFAS. Vinden er wijzigingen plaats in AFAS? Dan detecteert HelloID deze mutatie en voert deze wijziging door in Zenya. Zo weet je zeker dat informatie in beide systemen altijd up-to-date en gesynchroniseerd zijn.
 
-* **Entra ID - Zenya koppeling:** De koppeling tussen Entra ID - voorheen beschikbaar als Azure AD - en Zenya zorgt dat gebruikersinformatie in beide systemen altijd in lijn is en zorgt voor consistent beheer. HelloID automatiseert de synchronisatie van gebruikersaccounts tussen beide systemen. Voer je een mutatie door in Entra ID, bijvoorbeeld door het aanmaken van een nieuw account of wijzigen van een bestaand account? Dan voert HelloID deze wijziging automatisch door in Zenya. Zo verbeter je je serviceniveau en zorg je voor een naadloze gebruikerservaring voor werknemers. 
+* **Visma Raet - Zenya koppeling:** De koppeling tussen Visma Raet en Zenya zorgt dat gebruikersinformatie in beide systemen altijd in lijn is en zorgt voor consistent beheer. HelloID automatiseert de synchronisatie van persoonsgegevens tussen beide systemen. Voer je een mutatie door in Visma Raet, bijvoorbeeld door het aanmaken van een nieuw medewerker of wijzigen van een bestaand medewerker? Dan voert HelloID deze wijziging automatisch door in Zenya. Zo verbeter je je serviceniveau en zorg je voor een naadloze gebruikerservaring voor werknemers. 
 
 Voor HelloID zijn 200 connectoren beschikbaar, waarmee je de IAM-oplossing aan een breed scala aan bron- en doelsystemen kunt koppelen. Dankzij deze brede integratiemogelijkheden kan je Zenya dan ook koppelen aan alle populaire bronsystemen.
