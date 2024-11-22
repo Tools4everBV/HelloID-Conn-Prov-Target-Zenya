@@ -123,6 +123,14 @@ try {
     }
     #endregion Verify account reference
 
+    #region Verify account reference
+    $actionMessage = "verifying account reference"
+    
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+    #endregion Verify account reference
+
     #region Create access token
     $actionMessage = "creating access token"
 
@@ -146,19 +154,21 @@ try {
 
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
 
-    Write-Verbose "Created access token. Result: $($createAccessTokenResonse | ConvertTo-Json)"
+    Write-Verbose "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
     #endregion Create access token
 
     #region Create headers
     $actionMessage = "creating headers"
 
     $headers = @{
-        "Authorization" = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
-        "Accept"        = "application/json"
-        "Content-Type"  = "application/json;charset=utf-8"
+        "Accept"       = "application/json"
+        "Content-Type" = "application/json;charset=utf-8"
     }
 
-    Write-Verbose "Created headers. Result: $($headers | ConvertTo-Json)."
+    Write-Verbose "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
+
+    # Add Authorization after printing splat
+    $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
     #endregion Create headers
 
     #region Get Groups
