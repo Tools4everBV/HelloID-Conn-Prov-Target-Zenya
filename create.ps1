@@ -1,17 +1,10 @@
-#####################################################
+#################################################
 # HelloID-Conn-Prov-Target-Zenya-Create
-#
-# Version: 2.0.0
-#####################################################
-
-# Set to false at start, at the end, only when no error occurs it is set to true
-$outputContext.Success = $false
-
-# AccountReference must have a value for dryRun
-$outputContext.AccountReference = "DryRun"
-
-# Set TLS to accept TLS, TLS 1.1 and TLS 1.2
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls12
+# Correlate to or create account
+# PowerShell V2
+#################################################
+# Enable TLS1.2
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
 # Set debug logging
 switch ($actionContext.Configuration.isDebug) {
@@ -21,27 +14,34 @@ switch ($actionContext.Configuration.isDebug) {
 $InformationPreference = "Continue"
 $WarningPreference = "Continue"
 
-# Used to connect to Zenya Scim endpoints
-$baseUrl = $actionContext.Configuration.serviceAddress
-$clientId = $actionContext.Configuration.clientId
-$clientSecret = $actionContext.Configuration.clientSecret
-
-$actionContext.DryRun = $false
-
 #region functions
-function Resolve-ZenyaErrorMessage {
+function Resolve-ZenyaError {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
+        [Parameter(Mandatory)]
+        [object]
+        $ErrorObject
     )
     process {
-        $errorMessage = ""
-
+        $httpErrorObj = [PSCustomObject]@{
+            ScriptLineNumber = $ErrorObject.InvocationInfo.ScriptLineNumber
+            Line             = $ErrorObject.InvocationInfo.Line
+            ErrorDetails     = $ErrorObject.Exception.Message
+            FriendlyMessage  = $ErrorObject.Exception.Message
+        }
+        if (-not [string]::IsNullOrEmpty($ErrorObject.ErrorDetails.Message)) {
+            $httpErrorObj.ErrorDetails = $ErrorObject.ErrorDetails.Message
+        }
+        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
+            if ($null -ne $ErrorObject.Exception.Response) {
+                $streamReaderResponse = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
+                if (-not [string]::IsNullOrEmpty($streamReaderResponse)) {
+                    $httpErrorObj.ErrorDetails = $streamReaderResponse
+                }
+            }
+        }
         try {
-            $errorObjectConverted = $ErrorObject | ConvertFrom-Json -ErrorAction Stop
+            $errorObjectConverted = $httpErrorObj.ErrorDetails | ConvertFrom-Json -ErrorAction Stop
 
             if ($null -ne $errorObjectConverted.detail) {
                 $errorObjectDetail = [regex]::Matches($errorObjectConverted.detail, '{(.*)}').Value
@@ -50,111 +50,73 @@ function Resolve-ZenyaErrorMessage {
                         $errorDetailConverted = $errorObjectDetail | ConvertFrom-Json -ErrorAction Stop
                         if ($null -ne $errorDetailConverted) {
                             if ($null -ne $errorDetailConverted.Error.Message) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.Error.Message
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.Error.Message
                             }
                             if ($null -ne $errorDetailConverted.title) {
-                                $errorMessage = $errorMessage + $errorDetailConverted.title
+                                $httpErrorObj.FriendlyMessage = $errorMessage + $errorDetailConverted.title
                             }
-
                         }
                     }
                     catch {
-                        $errorMessage = $errorObjectDetail
+                        $httpErrorObj.FriendlyMessage = $errorObjectDetail
                     }
                 }
                 else {
-                    $errorMessage = $errorObjectConverted.detail
+                    $httpErrorObj.FriendlyMessage = $errorObjectConverted.detail
                 }
 
                 if ($null -ne $errorObjectConverted.status) {
-                    $errorMessage = $errorMessage + " (" + $errorObjectConverted.status + ")"
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
             else {
-                $errorMessage = $ErrorObject
+                $httpErrorObj.FriendlyMessage = $ErrorObject
             }
         }
         catch {
-            $errorMessage = $ErrorObject
+            $httpErrorObj.FriendlyMessage = $ErrorObject
         }
-
-        Write-Output $errorMessage
+        Write-Output $httpErrorObj
     }
 }
 
-function Get-ErrorMessage {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $errorMessage = [PSCustomObject]@{
-            VerboseErrorMessage = $null
-            AuditErrorMessage   = $null
+function Convert-StringToBoolean($obj) {
+    if ($obj -is [PSCustomObject]) {
+        foreach ($property in $obj.PSObject.Properties) {
+            $value = $property.Value
+            if ($value -is [string]) {
+                $lowercaseValue = $value.ToLower()
+                if ($lowercaseValue -eq "true") {
+                    $obj.$($property.Name) = $true
+                }
+                elseif ($lowercaseValue -eq "false") {
+                    $obj.$($property.Name) = $false
+                }
+            }
+            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
+                $obj.$($property.Name) = Convert-StringToBoolean $value
+            }
+            elseif ($value -is [System.Collections.IList]) {
+                for ($i = 0; $i -lt $value.Count; $i++) {
+                    $value[$i] = Convert-StringToBoolean $value[$i]
+                }
+                $obj.$($property.Name) = $value
+            }
         }
-
-        try {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.ErrorDetails.Message
-            $errorMessage.AuditErrorMessage = (Resolve-ZenyaErrorMessage $ErrorObject.ErrorDetails.Message) + ". Response Status: $($ErrorObject.Exception.Response.StatusCode)."
-        }
-        catch {
-            Write-Verbose "Error resolving Zenya error message, using default Powershell error message"
-        }
-
-        # If error message empty, fall back on $ex.Exception.Message
-        if ([String]::IsNullOrEmpty($errorMessage.VerboseErrorMessage)) {
-            $errorMessage.VerboseErrorMessage = $ErrorObject.Exception.Message
-        }
-        if ([String]::IsNullOrEmpty($errorMessage.AuditErrorMessage)) {
-            $errorMessage.AuditErrorMessage = $ErrorObject.Exception.Message
-        }
-
-        Write-Output $errorMessage
     }
-}
-
-function New-AuthorizationHeaders {
-    [CmdletBinding()]
-    [OutputType([System.Collections.Generic.Dictionary[[String], [String]]])]
-    param(
-        [parameter(Mandatory)]
-        [string]
-        $ClientId,
-
-        [parameter(Mandatory)]
-        [string]
-        $ClientSecret
-    )
-    try {
-        Write-Verbose 'Creating Access Token'
-
-        $authorizationurl = "$baseUrl/oauth/token"
-        $authorizationbody = @{
-            "grant_type"                = 'client_credentials'
-            "client_id"                 = $ClientId
-            "client_secret"             = $ClientSecret
-            "token_expiration_disabled" = $false
-        } | ConvertTo-Json -Depth 10
-        $AccessToken = Invoke-RestMethod -uri $authorizationurl -body $authorizationbody -Method Post -ContentType "application/json"
-
-        Write-Verbose 'Adding Authorization headers'
-        $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
-        $headers.Add('Authorization', "$($AccessToken.token_type) $($AccessToken.access_token)")
-        $headers.Add('Accept', 'application/json')
-        $headers.Add('Content-Type', 'application/json')
-        Write-Output $headers
-    }
-    catch {
-        throw $_
-    }
+    return $obj
 }
 #endregion functions
 
-#region Account mapping
+#region account
+# Define correlation
+$correlationField = $actionContext.CorrelationConfiguration.accountField
+$correlationValue = $actionContext.CorrelationConfiguration.accountFieldValue
+
 $account = [PSCustomObject]$actionContext.Data
+
+# Convert the properties containing "TRUE" or "FALSE" to boolean
+$account = Convert-StringToBoolean $account
 
 # If option to set department isn't toggled, remove from account object
 if ($false -eq $actionContext.Configuration.setDepartment) {
@@ -165,118 +127,158 @@ if ($false -eq $actionContext.Configuration.setDepartment) {
 if ($false -eq $actionContext.Configuration.setManager) {
     $account.PSObject.Properties.Remove("Manager")
 }
-
-# Convert active property to boolean
-$account.Active = [System.Convert]::ToBoolean($account.Active)
-#endregion Account mapping
+else {
+    $account | Add-Member -MemberType NoteProperty -Name Manager -Value $actionContext.References.ManagerAccount.Id -Force
+}
+#endRegion account
 
 try {
-    # Create authorization headers
-    try {
-        $headers = New-AuthorizationHeaders -ClientId $clientId -ClientSecret $clientSecret
-    }
-    catch {
-        $ex = $PSItem
-        $errorMessage = Get-ErrorMessage -ErrorObject $ex
+    #region Verify correlation configuration and properties
+    $actionMessage = "verifying correlation configuration and properties"
 
-        Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Error creating authorization headers. Error Message: $($errorMessage.AuditErrorMessage)"
-                IsError = $true
-            })
-
-        # Throw terminal error
-        throw
-    }
-
-    # Check if we should try to correlate the account
-    if ($actionContext.CorrelationConfiguration.Enabled) {
-        $correlationField = $actionContext.CorrelationConfiguration.accountField
-        $correlationValue = $actionContext.CorrelationConfiguration.accountFieldValue
-
-        if ($correlationField -eq $null) {
-            Write-Warning "Correlation is enabled but not configured correctly."
+    if ($actionContext.CorrelationConfiguration.Enabled -eq $true) {
+        if ([string]::IsNullOrEmpty($correlationField)) {
+            throw "Correlation is enabled but not configured correctly."
         }
-
-        # Check if current account exists and and verify if a user must be either [created] or [correlated]
-        try {
-            $filter = "$($correlationField) eq `"$($correlationValue)`""
-            Write-Verbose "Querying account that matches filter [$($filter)]"
-            $splatWebRequest = @{
-                Uri             = "$baseUrl/scim/users?filter=$([System.Uri]::EscapeDataString($filter))"
-                Headers         = $headers
-                Method          = 'GET'
-                ContentType     = "application/json;charset=utf-8"
-                UseBasicParsing = $true
-            }
-
-            $correlatedAccount = (Invoke-RestMethod @splatWebRequest -Verbose:$false).resources
-
-            if (($correlatedAccount | Measure-Object).count -eq 1) {
-                $outputContext.AccountReference = [PSCustomObject]@{
-                    id       = $correlatedAccount.id
-                    userName = $correlatedAccount.userName
-                }
-                $outputContext.Data.ExternalId = $correlatedAccount.ExternalId
-                $outputContext.Data = $correlatedAccount
-
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        Action  = "CorrelateAccount" # Optionally specify a different action for this audit log
-                        Message = "Correlated account with username $($correlatedAccount.UserName) on field $($correlationField) with value $($correlationValue)"
-                        IsError = $false
-                    })
-
-                $outputContext.Success = $True
-                $outputContext.AccountCorrelated = $True
-            }
-            elseif (($correlatedAccount | Measure-Object).count -gt 1) {
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
-                        Message = "Multiple accounts found that match filter [$($filter)]. Please correct this so the accounts are unique."
-                        IsError = $true
-                    })
-            }
-        }
-        catch {
-            $ex = $PSItem
-            $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-            Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-            Write-Verbose "URI: $($splatWebRequest.Uri)"
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error querying account that matches filter [$($filter)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
-            # Throw terminal error
-            throw
+    
+        if ([string]::IsNullOrEmpty($correlationValue)) {
+            throw "The correlation value for [$correlationField] is empty. This is likely a mapping issue."
         }
     }
     else {
-        Write-Warning "Correlation is not enabled."
+        Write-Warning "Correlation is disabled."
+    }
+    #endregion Verify correlation configuration and properties
+
+    #region Verify account reference
+    $actionMessage = "verifying account reference"
+    
+    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
+        throw "The account reference could not be found"
+    }
+    #endregion Verify account reference
+
+    #region Create access token
+    $actionMessage = "creating access token"
+
+    $createAccessTokenBody = @{
+        grant_type                = "client_credentials"
+        client_id                 = $actionContext.Configuration.clientId
+        client_secret             = $actionContext.Configuration.clientSecret
+        token_expiration_disabled = $false
     }
 
-    # Create account
-    if (-Not($outputContext.AccountCorrelated -eq $true)) {
-        # Create account
-        try {
+    $createAccessTokenSplatParams = @{
+        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Headers         = $headers
+        Method          = "POST"
+        ContentType     = "application/json"
+        UseBasicParsing = $true
+        Body            = ($createAccessTokenBody | ConvertTo-Json)
+        Verbose         = $false
+        ErrorAction     = "Stop"
+    }
+
+    $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
+
+    Write-Verbose "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
+    #endregion Create access token
+
+    #region Create headers
+    $actionMessage = "creating headers"
+
+    $headers = @{
+        "Accept"       = "application/json"
+        "Content-Type" = "application/json;charset=utf-8"
+    }
+
+    Write-Verbose "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
+
+    # Add Authorization after printing splat
+    $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
+    #endregion Create headers
+
+    if ($actionContext.CorrelationConfiguration.Enabled) {
+        #region Get account
+        # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest
+        $actionMessage = "querying Zenya account where [$($correlationField)] = [$($correlationValue)]"
+
+        $filter = "$($correlationField) eq `"$($correlationValue)`""
+        $getZenyaAccountSplatParams = @{
+            Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users?filter=$([System.Uri]::EscapeDataString($filter))"
+            Headers         = $headers
+            Method          = "GET"
+            ContentType     = "application/json;charset=utf-8"
+            UseBasicParsing = $true
+            Verbose         = $false
+            ErrorAction     = "Stop"
+        }
+    
+        $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
+        $correlatedAccount = $getZenyaAccountResponse.resources
+
+        Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
+        #endregion Get account
+    }
+
+    #region Account
+    #region Calulate action
+    $actionMessage = "calculating action"
+    if (($correlatedAccount | Measure-Object).count -eq 1) {
+        $actionAccount = "Correlate"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
+        $actionAccount = "Create"
+    }
+    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
+        $actionAccount = "MultipleFound"
+    }
+    #endregion Calulate action
+
+    #region Process
+    switch ($actionAccount) {
+        "Correlate" {
+            #region Correlate account
+            $actionMessage = "correlating to account"
+    
+            $outputContext.AccountReference = [PSCustomObject]@{
+                id       = $correlatedAccount.id
+                userName = $correlatedAccount.userName
+            }
+            $outputContext.Data = $correlatedAccount
+    
+            $outputContext.AuditLogs.Add([PSCustomObject]@{
+                    Action  = "CorrelateAccount" # Optionally specify a different action for this audit log
+                    Message = "Correlated to account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json) on [$($correlationField)] = [$($correlationValue)]."
+                    IsError = $false
+                })
+    
+            $outputContext.AccountCorrelated = $true
+            #endregion Correlate account
+    
+            break
+        }
+
+        "Create" {
+            #region Create account                  
+            # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostUserRequest
+            $actionMessage = "creating account with DisplayName [$($account.DisplayName)] and UserName [$($account.UserName)]"
+
             # Create account body and set with default properties
-            $accountBody = [PSCustomObject]@{
+            $createAccountBody = [PSCustomObject]@{
                 schemas = @("urn:ietf:params:scim:schemas:core:2.0:User")
             }
 
-            # Add all account properties to account object - Except for Emails, Department and Manager as it is set at as custom object within
-            foreach ($accountProperty in $actionContext.Data.PSObject.Properties | Where-Object { $_.Name -ne 'Emails' -and $_.Name -ne 'Department' -and $_.Name -ne 'Manager' }) {
-                $accountBody | Add-Member -MemberType NoteProperty -Name $accountProperty.Name -Value $accountProperty.Value -Force
+            # Add all account properties to account object
+            # Ecluded the fields: Emails, Department and Manager. As they are set at as custom object
+            $excludedField = @("Emails", "Department", "Manager")
+            foreach ($accountProperty in $account.PsObject.Properties | Where-Object { $_.Name -notin $excludedField }) {
+                $createAccountBody | Add-Member -MemberType NoteProperty -Name $accountProperty.Name -Value $accountProperty.Value -Force
             }
 
             # Add email as custom object to account object
-            if (-not[String]::IsNullOrEmpty($actionContext.Data.Emails)) {
-                foreach ($email in $actionContext.Data.Emails) {
+            if (-not[String]::IsNullOrEmpty($account.Emails)) {
+                foreach ($email in $account.Emails) {
                     if ($email.StartsWith("work:")) {
                         $emailsObject = @(
                             [PSCustomObject]@{
@@ -287,7 +289,7 @@ try {
                         )
                     }
                 }
-                $accountBody | Add-Member -MemberType NoteProperty -Name emails -Value $emailsObject -Force
+                $createAccountBody | Add-Member -MemberType NoteProperty -Name emails -Value $emailsObject -Force
             }
 
             # Add ExtensionObject to account object
@@ -303,73 +305,97 @@ try {
                 # Add Manager to ExtensionObject of account object
                 if ("Manager" -in $account.PsObject.Properties.Name) {
                     $managerObject = @{
-                        value = $mRef.id # Zenya account id
+                        value = $account.Manager # Zenya account id
                     }
                     $extensionObject | Add-Member -MemberType NoteProperty -Name Manager -Value $managerObject -Force
                 }
 
-                $accountBody | Add-Member -MemberType NoteProperty -Name "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" -Value $extensionObject -Force
+                $createAccountBody | Add-Member -MemberType NoteProperty -Name "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User" -Value $extensionObject -Force
             }
 
-            $body = ($accountBody | ConvertTo-Json -Depth 10)
-            $splatWebRequest = @{
-                Uri             = "$baseUrl/scim/users"
-                Headers         = $headers
-                Method          = 'POST'
-                Body            = ([System.Text.Encoding]::UTF8.GetBytes($body))
-                ContentType     = "application/json;charset=utf-8"
-                UseBasicParsing = $true
+            $createAccountSplatParams = @{
+                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users"
+                Method      = "POST"
+                Body        = ($createAccountBody | ConvertTo-Json -Depth 10)
+                ContentType = 'application/json; charset=utf-8'
+                Verbose     = $false
+                ErrorAction = "Stop"
             }
+
+            Write-Verbose "SplatParams: $($createAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
-                Write-Verbose "Creating account [$($account.Username)]. Body: $body"
+                # Add header after printing splat
+                $createAccountSplatParams['Headers'] = $headers
 
-                $createdAccount = Invoke-RestMethod @splatWebRequest -Verbose:$false
-                # Set the correct account reference
+                $createAccountResponse = Invoke-RestMethod @createAccountSplatParams
+                $createdAccount = $createAccountResponse
+
                 $outputContext.AccountReference = [PSCustomObject]@{
-                    Id       = $createdAccount.id
-                    Username = $createdAccount.userName
+                    id       = $createdAccount.id
+                    userName = $createdAccount.userName
                 }
+                $outputContext.Data = $createdAccount
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         # Action  = "" # Optional
-                        Message = "Successfully created account [$($account.Username)]. AccountReference: $($outputContext.AccountReference | ConvertTo-Json -Depth 10)"
+                        Message = "Created account with DisplayName [$($account.DisplayName)] and UserName [$($account.UserName)] with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
                         IsError = $false
                     })
             }
             else {
-                Write-Warning "DryRun: Would create account [$($account.Username)]. Body: $body"
+                Write-Warning "DryRun: Would create account with DisplayName [$($account.DisplayName)] and UserName [$($account.UserName)]."
             }
+            #endregion Create account
+                        
+            break
         }
-        catch {
-            $ex = $PSItem
-            $errorMessage = Get-ErrorMessage -ErrorObject $ex
-
-            Write-Verbose "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($errorMessage.VerboseErrorMessage)"
-            Write-Verbose "URI: $($splatWebRequest.Uri)"
-            Write-Verbose "Body: ($body)"
-
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Error creating account [$($account.Username)]. Error Message: $($errorMessage.AuditErrorMessage)"
-                    IsError = $true
-                })
-
+    
+        "MultipleFound" {
+            #region Multiple accounts found
+            $actionMessage = "correlating to account"
+    
             # Throw terminal error
-            throw
+            throw "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this so the persons are unique."
+            #endregion Multiple accounts found
+    
+            break
         }
     }
+    #endregion Process
 }
 catch {
     $ex = $PSItem
-    Write-Warning "Terminal error occurred. Error Message: $($ex.Exception.Message)"
+    if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
+        $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
+        $errorObj = Resolve-ZenyaError -ErrorObject $ex
+        $auditMessage = "Error $($actionMessage). Error: $($errorObj.FriendlyMessage)"
+        $warningMessage = "Error at Line [$($errorObj.ScriptLineNumber)]: $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
+    }
+    else {
+        $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
+        $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
+    }
+
+    Write-Warning $warningMessage
+    
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
 }
 finally {
     # Check if auditLogs contains errors, if no errors are found, set success to true
-    if (-NOT($outputContext.AuditLogs.IsError -contains $true)) {
+    if ($outputContext.AuditLogs.IsError -contains $true) {
+        $outputContext.Success = $false
+    }
+    else {
         $outputContext.Success = $true
     }
 
-    # Set data with account object
-    $outputContext.Data = $account
+    # Check if accountreference is set, if not set, set this with default value as this must contain a value
+    if ([String]::IsNullOrEmpty($outputContext.AccountReference) -and $actionContext.DryRun -eq $true) {
+        $outputContext.AccountReference = "DryRun: Currently not available"
+    }
 }

@@ -1,8 +1,9 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-Delete
-# Delete account
-# Version: 2.0.0
+# HelloID-Conn-Prov-Target-Zenya-Resources-Groups
+# Creates groups dynamically based on HR data
+# PowerShell V2
 #####################################################
+
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -108,21 +109,7 @@ function Convert-StringToBoolean($obj) {
 }
 #endregion functions
 
-#region account
-# Define correlation
-$correlationField = "Id"
-$correlationValue = $actionContext.References.Account.Id
-#endRegion account
-
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Verify account reference
     $actionMessage = "verifying account reference"
     
@@ -171,103 +158,135 @@ try {
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
     #endregion Create headers
 
-    #region Get account
-    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUserRequest
-    $actionMessage = "querying Zenya account where [$($correlationField)] = [$($correlationValue)]"
+    #region Get Groups
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetGroupsRequest
+    $actionMessage = "querying Groups"
 
-    $getZenyaAccountSplatParams = @{
-        Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
-        Headers         = $headers
-        Method          = "GET"
-        ContentType     = "application/json;charset=utf-8"
-        UseBasicParsing = $true
-        Verbose         = $false
-        ErrorAction     = "Stop"
-    }
+    $groups = [System.Collections.ArrayList]@()
+    $skip = 0
+    $take = 100
+    do {
+        $getGroupsSplatParams = @{
+            Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups?startIndex=$($skip)&count=$($take)"
+            Method      = "GET"
+            ContentType = 'application/json; charset=utf-8'
+            Verbose     = $false
+            ErrorAction = "Stop"
+        }
+
+        Write-Verbose "SplatParams: $($getGroupsSplatParams | ConvertTo-Json)"
+
+        # Add header after printing splat
+        $getGroupsSplatParams['Headers'] = $headers
     
-    $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
-    $correlatedAccount = $getZenyaAccountResponse
+        $getGroupsResponse = Invoke-RestMethod @getGroupsSplatParams
 
-    Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
-    #endregion Get account
-
-    #region Account
-    #region Calulate action
-    $actionMessage = "calculating action"
-    if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $actionAccount = "Delete"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
-        $actionAccount = "NotFound"
-    }
-    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
-        $actionAccount = "MultipleFound"
-    }
-    #endregion Calulate action
-
-    #region Process
-    switch ($actionAccount) {
-        "Delete" {
-            #region Delete account
-            # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest
-            $actionMessage = "deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
-
-            $deleteAccountSplatParams = @{
-                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
-                Method      = "DELETE"
-                ContentType = 'application/json; charset=utf-8'
-                Verbose     = $false
-                ErrorAction = "Stop"
-            }
-
-            Write-Verbose "SplatParams: $($deleteAccountSplatParams | ConvertTo-Json)"
-
-            if (-Not($actionContext.DryRun -eq $true)) {
-                # Add header after printing splat
-                $deleteAccountSplatParams['Headers'] = $headers
-
-                $deleteAccountResponse = Invoke-RestMethod @deleteAccountSplatParams
-
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
-                        Message = "Deleted account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
-                        IsError = $false
-                    })
-            }
-            else {
-                Write-Warning "DryRun: Would delete account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
-            }
-            #endregion Delete account
-
-            break
+        if ($getGroupsResponse.Resources -is [array]) {
+            [void]$groups.AddRange($getGroupsResponse.Resources)
+        }
+        else {
+            [void]$groups.Add($getGroupsResponse.Resources)
         }
 
-        "NotFound" {
-            #region No account found
-            $actionMessage = "skipping deleting account"
+        $skip += $take
+    } while (($groups | Measure-Object).Count -lt $getGroupsResponse.totalResults)
+
+    Write-Information "Queried Groups. Result count: $(($groups | Measure-Object).Count)"
+    #endregion Get Groups
+
+    #region Process resources
+    # Ensure the resourceContext data is unique based on ExternalId and DisplayName
+    # and always sorted in the same order (by ExternalId and DisplayName)
+    $resourceData = $resourceContext.SourceData |
+    Select-Object -Property ExternalId, DisplayName -Unique | # Ensure uniqueness
+    Sort-Object -Property @{Expression = { [int]$_.ExternalId } }, DisplayName # Ensure consistent order by sorting ExternalId as integer and then by DisplayName
+
+    # Group on ExternalId to check if group exists (as correlation property has to be unique for a group)
+    $groupsGrouped = $groups | Group-Object -Property externalId -AsHashTable -AsString
+
+    foreach ($resource in $resourceData) {
+        #region get group for resource
+        $actionMessage = "querying group for resource: $($resource | ConvertTo-Json)"
+ 
+        $correlationField = "externalId"
+        $correlationValue = "department_$($resource.ExternalId)"
+
+        $correlatedResource = $null
+        $correlatedResource = $groupsGrouped["$($correlationValue)"]
+        #endregion get group for resource
         
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
-                    IsError = $true
-                })
-            #endregion No account found
-
-            break
+        #region Calulate action
+        if (($correlatedResource | Measure-Object).count -eq 0) {
+            $actionResource = "CreateResource"
         }
-
-        "MultipleFound" {
-            #region Multiple accounts found
-            $actionMessage = "deleting account"
-
-            # Throw terminal error
-            throw "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this to ensure the correlation results in a single unique account."
-            #endregion Multiple accounts found
-
-            break
+        elseif (($correlatedResource | Measure-Object).count -eq 1) {
+            $actionResource = "CorrelateResource"
         }
+        #endregion Calulate action
+
+        #region Process
+        switch ($actionResource) {
+            "CreateResource" {
+                #region Create group
+                # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostGroupRequest
+                $actionMessage = "creating group for resource: $($resource | ConvertTo-Json)"
+
+                # Create account body and set with default properties
+                $createGroupBody = [PSCustomObject]@{
+                    schemas      = "urn:ietf:params:scim:schemas:core:2.0:Group"
+                    external_id  = "department_$($resource.ExternalId)"
+                    display_name = "$($resource.DisplayName)"
+                }
+
+                $createGroupSplatParams = @{
+                    Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups"
+                    Method      = "POST"
+                    Body        = ($createGroupBody | ConvertTo-Json -Depth 10)
+                    ContentType = 'application/json; charset=utf-8'
+                    Verbose     = $false
+                    ErrorAction = "Stop"
+                }
+
+                Write-Verbose "SplatParams: $($createGroupSplatParams | ConvertTo-Json)"
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    # Add header after printing splat
+                    $createGroupSplatParams['Headers'] = $headers
+
+                    $createGroupResponse = Invoke-RestMethod @createGroupSplatParams
+                    $createdGroup = $createGroupResponse
+
+                    $outputContext.AuditLogs.Add([PSCustomObject]@{
+                            # Action  = "" # Optional
+                            Message = "Created group with id [$($createdGroup.id)], displayName [$($createdGroup.displayName)] and externalId [$($createdGroup.externalId)]  for resource: $($resource | ConvertTo-Json)."
+                            IsError = $false
+                        })
+                }
+                else {
+                    Write-Warning "DryRun: Would create group with display_name [$($createGroupBody.display_name)] and external_id [$($createGroupBody.external_id)]  for resource: $($resource | ConvertTo-Json)."
+                }
+                #endregion Create group
+
+                break
+            }
+
+            "CorrelateResource" {
+                #region Correlate group
+                $actionMessage = "correlating to group for resource: $($resource | ConvertTo-Json)"
+
+                if (-Not($actionContext.DryRun -eq $true)) {
+                    Write-Verbose "Correlated to group with id [$($correlatedResource.id)] on [$($correlationField)] = [$($correlationValue)]."
+                }
+                else {
+                    Write-Warning "DryRun: Would correlate to group with id [$($correlatedResource.id)] on [$($correlationField)] = [$($correlationValue)]."
+                }
+                #endregion Correlate group
+
+                break
+            }
+        }
+        #endregion Process
     }
-    #endregion Process
 }
 catch {
     $ex = $PSItem
@@ -282,29 +301,17 @@ catch {
         $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
 
-    if ($auditMessage -like "*User not found*") {
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
-                IsError = $false
-            })
-    }
-    else {
-        Write-Warning $warningMessage
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = $auditMessage
-                IsError = $true
-            })
-    }
+    Write-Warning $warningMessage
+    
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
 }
-finally {
+finally { 
     # Check if auditLogs contains errors, if no errors are found, set success to true
-    if ($outputContext.AuditLogs.IsError -contains $true) {
-        $outputContext.Success = $false
-    }
-    else {
+    if (-NOT($outputContext.AuditLogs.IsError -contains $true)) {
         $outputContext.Success = $true
     }
 }

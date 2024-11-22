@@ -1,8 +1,9 @@
 #####################################################
-# HelloID-Conn-Prov-Target-Zenya-Delete
-# Delete account
+# HelloID-Conn-Prov-Target-Zenya-Permissions-Grant
+# Grant groupmembership to account
 # Version: 2.0.0
 #####################################################
+
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -108,21 +109,7 @@ function Convert-StringToBoolean($obj) {
 }
 #endregion functions
 
-#region account
-# Define correlation
-$correlationField = "Id"
-$correlationValue = $actionContext.References.Account.Id
-#endRegion account
-
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Verify account reference
     $actionMessage = "verifying account reference"
     
@@ -171,103 +158,55 @@ try {
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
     #endregion Create headers
 
-    #region Get account
-    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUserRequest
-    $actionMessage = "querying Zenya account where [$($correlationField)] = [$($correlationValue)]"
+    #region Grant permission
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup
+    $actionMessage = "granting group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
 
-    $getZenyaAccountSplatParams = @{
-        Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
-        Headers         = $headers
-        Method          = "GET"
-        ContentType     = "application/json;charset=utf-8"
-        UseBasicParsing = $true
-        Verbose         = $false
-        ErrorAction     = "Stop"
+    # Create permission body
+    $grantPermissionBody = [PSCustomObject]@{
+        schemas    = @("urn:ietf:params:scim:schemas:core:2.0:Group")
+        id         = $actionContext.References.Permission.id
+        operations = @(
+            @{
+                op    = "add"
+                path  = "members"
+                value = @(
+                    @{
+                        value   = $actionContext.References.Account.Id
+                        display = $actionContext.References.Account.UserName
+                    }
+                )
+            }
+        )
     }
     
-    $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
-    $correlatedAccount = $getZenyaAccountResponse
-
-    Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
-    #endregion Get account
-
-    #region Account
-    #region Calulate action
-    $actionMessage = "calculating action"
-    if (($correlatedAccount | Measure-Object).count -eq 1) {
-        $actionAccount = "Delete"
+    $grantPermissionSplatParams = @{
+        Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups/$($actionContext.References.Permission.Id)"
+        Method      = "PATCH"
+        Body        = ($grantPermissionBody | ConvertTo-Json -Depth 10)
+        ContentType = 'application/json; charset=utf-8'
+        Verbose     = $false
+        ErrorAction = "Stop"
     }
-    elseif (($correlatedAccount | Measure-Object).count -eq 0) {
-        $actionAccount = "NotFound"
+
+    Write-Verbose "SplatParams: $($grantPermissionSplatParams | ConvertTo-Json)"
+
+    if (-Not($actionContext.DryRun -eq $true)) {
+        # Add header after printing splat
+        $grantPermissionSplatParams['Headers'] = $headers
+
+        $grantPermissionResponse = Invoke-RestMethod @grantPermissionSplatParams
+
+        $outputContext.AuditLogs.Add([PSCustomObject]@{
+                # Action  = "" # Optional
+                Message = "Granted group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                IsError = $false
+            })
     }
-    elseif (($correlatedAccount | Measure-Object).count -gt 1) {
-        $actionAccount = "MultipleFound"
+    else {
+        Write-Warning "DryRun: Would grant group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
     }
-    #endregion Calulate action
-
-    #region Process
-    switch ($actionAccount) {
-        "Delete" {
-            #region Delete account
-            # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest
-            $actionMessage = "deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
-
-            $deleteAccountSplatParams = @{
-                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
-                Method      = "DELETE"
-                ContentType = 'application/json; charset=utf-8'
-                Verbose     = $false
-                ErrorAction = "Stop"
-            }
-
-            Write-Verbose "SplatParams: $($deleteAccountSplatParams | ConvertTo-Json)"
-
-            if (-Not($actionContext.DryRun -eq $true)) {
-                # Add header after printing splat
-                $deleteAccountSplatParams['Headers'] = $headers
-
-                $deleteAccountResponse = Invoke-RestMethod @deleteAccountSplatParams
-
-                $outputContext.AuditLogs.Add([PSCustomObject]@{
-                        # Action  = "" # Optional
-                        Message = "Deleted account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
-                        IsError = $false
-                    })
-            }
-            else {
-                Write-Warning "DryRun: Would delete account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json)."
-            }
-            #endregion Delete account
-
-            break
-        }
-
-        "NotFound" {
-            #region No account found
-            $actionMessage = "skipping deleting account"
-        
-            $outputContext.AuditLogs.Add([PSCustomObject]@{
-                    # Action  = "" # Optional
-                    Message = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
-                    IsError = $true
-                })
-            #endregion No account found
-
-            break
-        }
-
-        "MultipleFound" {
-            #region Multiple accounts found
-            $actionMessage = "deleting account"
-
-            # Throw terminal error
-            throw "Multiple accounts found where [$($correlationField)] = [$($correlationValue)]. Please correct this to ensure the correlation results in a single unique account."
-            #endregion Multiple accounts found
-
-            break
-        }
-    }
-    #endregion Process
+    #endregion Grant permission
 }
 catch {
     $ex = $PSItem
@@ -282,22 +221,13 @@ catch {
         $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
 
-    if ($auditMessage -like "*User not found*") {
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Skipped deleting account with AccountReference: $($actionContext.References.Account | ConvertTo-Json). Reason: No account found where [$($correlationField)] = [$($correlationValue)]. Possibly indicating that it could be deleted, or not correlated."
-                IsError = $false
-            })
-    }
-    else {
-        Write-Warning $warningMessage
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = $auditMessage
-                IsError = $true
-            })
-    }
+    Write-Warning $warningMessage
+    
+    $outputContext.AuditLogs.Add([PSCustomObject]@{
+            # Action  = "" # Optional
+            Message = $auditMessage
+            IsError = $true
+        })
 }
 finally {
     # Check if auditLogs contains errors, if no errors are found, set success to true

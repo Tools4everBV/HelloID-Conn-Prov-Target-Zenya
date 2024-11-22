@@ -1,0 +1,193 @@
+{
+  "Version": "v1",
+  "MappingFields": [
+    {
+      "Name": "UserName",
+      "Description": "[Required] The user's username.  \nThis is typically the UserPrincipalName or EmployeeId.\n\n**Note:** Used as both the Correlation Key and Value, as well as the AccountReference. The ID is the primary AccountReference, but the username is also included as a backup and serves as an additional AccountReference.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getUsername(){\\r\\n    let username = Person.Accounts.MicrosoftActiveDirectory.userPrincipalName;\\r\\n\\r\\n    return username;\\r\\n}\\r\\n\\r\\ngetUsername();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Title",
+      "Description": "[Required] The user's job title.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.PrimaryContract.Title.Name\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "preferredLanguage",
+      "Description": "[Required] The user's preferred language.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"nl-NL\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Manager",
+      "Description": "[Optional] The manager's ID for the user. This field is read-only.\n\n**Note:** This uses a None mapping because the value is calculated in the scripts. We can only assign a manager who exists in Zenya and was created by HelloID. HelloID must first grant the Account entitlement to the manager.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "None",
+          "Value": "\"\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "ExternalId",
+      "Description": "[Required] The employee identifier assigned to the user by the organization.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.ExternalId\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "DisplayName",
+      "Description": "[Required] The user's display name.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"// logic to generate the displayName based on name convention.\\r\\n// B    Alexandra van der Wal\\r\\n// P    Alexandra de Vries\\r\\n// BP   Alexandra van der Wal - de Vries\\r\\n// PB   Alexandra de Vries - van der Wal\\r\\nfunction generateDisplayName() {\\r\\n    let firstName = Person.Name.NickName;\\r\\n    let middleName = Person.Name.FamilyNamePrefix;\\r\\n    let lastName = Person.Name.FamilyName;\\r\\n    let middleNamePartner = Person.Name.FamilyNamePartnerPrefix;\\r\\n    let lastNamePartner = Person.Name.FamilyNamePartner;\\r\\n    let convention = Person.Name.Convention;\\r\\n    let nameFormatted = '';\\r\\n\\r\\n    switch (convention) {\\r\\n        case 'B':\\r\\n            // Alexandra van der Wal\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra van der Wal\\r\\n            break;\\r\\n        case 'BP':\\r\\n            // Alexandra van der Wal - de Vries\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra van der Wal\\r\\n\\r\\n            nameFormatted = nameFormatted + ' -' // Alexandra van der Wal -\\r\\n\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { nameFormatted = nameFormatted + ' ' + middleNamePartner } // Alexandra van der Wal - de  \\r\\n            nameFormatted = nameFormatted + ' ' + lastNamePartner; // Alexandra van der Wal - de Vries\\r\\n            break;\\r\\n        case 'P':\\r\\n            // Alexandra de Vries\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { nameFormatted = nameFormatted + ' ' + middleNamePartner } // Alexandra de\\r\\n            nameFormatted = nameFormatted + ' ' + lastNamePartner; // Alexandra de Vries\\r\\n            break;\\r\\n        case 'PB':\\r\\n            // Alexandra de Vries - van der Wal\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleNamePartner !== 'undefined' && middleNamePartner) { nameFormatted = nameFormatted + ' ' + middleNamePartner } // Alexandra de\\r\\n            nameFormatted = nameFormatted + ' ' + lastNamePartner; // Alexandra de Vries\\r\\n\\r\\n            nameFormatted = nameFormatted + ' -' // Alexandra de Vries -\\r\\n\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra de Vries - van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra de Vries - van der Wal\\r\\n            break;\\r\\n        default:\\r\\n            // Alexandra van der Wal\\r\\n            nameFormatted = firstName; // Alexandra\\r\\n            if (typeof middleName !== 'undefined' && middleName) { nameFormatted = nameFormatted + ' ' + middleName } // Alexandra van der\\r\\n            nameFormatted = nameFormatted + ' ' + lastName // Alexandra van der Wal\\r\\n            break;\\r\\n    }\\r\\n\\r\\n    return nameFormatted;\\r\\n}\\r\\n\\r\\ngenerateDisplayName();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Id",
+      "Description": "[Required] The user's ID. This field is read-only.\n\n**Note:** This uses a None mapping because the value is calculated in the scripts. It is used as the AccountReference.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "None",
+          "Value": "\"\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Emails",
+      "Description": "[Required] The user's email addresses. This must be of the type Array.\n\n**Note:** Currently, only the work email address is supported in the format: 'work:' + <mail>.",
+      "Type": "Array",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getEmails() {\\r\\n    let mail = Person.Accounts.MicrosoftActiveDirectory.mail;\\r\\n\\r\\n    return [\\r\\n        \\\"work:\\\" + mail\\r\\n    ];\\r\\n}\\r\\n\\r\\ngetEmails();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Department",
+      "Description": "[Optional] The user's department.\n\n**Note:** We can only assign departments that already exist in Zenya, and each department must have a unique name (matching is done by name only). Department maintenance, including creation, deletion, and setting the owner, must be managed in Zenya.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Field",
+          "Value": "\"Person.PrimaryContract.Department.DisplayName\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    },
+    {
+      "Name": "Active",
+      "Description": "[Required] The user's account state.",
+      "Type": "Text",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"false\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        },
+        {
+          "MapForActions": [
+            "Enable"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"true\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        },
+        {
+          "MapForActions": [
+            "Disable"
+          ],
+          "MappingMode": "Fixed",
+          "Value": "\"false\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": true
+        }
+      ]
+    }
+  ],
+  "UniqueFieldNames": []
+}
