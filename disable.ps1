@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Resolve-ZenyaError {
     [CmdletBinding()]
@@ -175,7 +167,7 @@ try {
 
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
 
-    Write-Verbose "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
+    Write-Information "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
     #endregion Create access token
 
     #region Create headers
@@ -186,7 +178,7 @@ try {
         "Content-Type" = "application/json;charset=utf-8"
     }
 
-    Write-Verbose "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
+    Write-Information "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
 
     # Add Authorization after printing splat
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
@@ -209,7 +201,7 @@ try {
     $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
     $correlatedAccount = $getZenyaAccountResponse
 
-    Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
+    Write-Information "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
     #endregion Get account
 
     #region Account
@@ -287,7 +279,7 @@ try {
                 $accountChangedPropertiesObject.NewValues.$($accountNewProperty.Name) = $accountNewProperty.Value
             }
 
-            Write-Verbose "Changed properties: $($accountChangedPropertiesObject | ConvertTo-Json)"
+            Write-Information "Changed properties: $($accountChangedPropertiesObject | ConvertTo-Json)"
 
             $actionAccount = "Update"
         }
@@ -295,7 +287,7 @@ try {
             $actionAccount = "NoChanges"
         }            
 
-        Write-Verbose "Compared current account to mapped properties. Result: $actionAccount"
+        Write-Information "Compared current account to mapped properties. Result: $actionAccount"
     }
     elseif (($correlatedAccount | Measure-Object).count -eq 0) {
         $actionAccount = "NotFound"
@@ -366,7 +358,7 @@ try {
                 ErrorAction = "Stop"
             }
 
-            Write-Verbose "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
+            Write-Information "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat
