@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Permissions-Revoke
 # Revoke groupmembership from account
-# Version: 2.0.0
+# PowerShell V2
 #####################################################
 
 # Enable TLS1.2
@@ -110,14 +110,6 @@ try {
     }
     #endregion Verify account reference
 
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Create access token
     $actionMessage = "creating access token"
 
@@ -160,7 +152,7 @@ try {
 
     #region Revoke permission
     # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup
-    $actionMessage = "revoking group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
+    $actionMessage = "revoking group [$($actionContext.PermissionDisplayName)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
 
     # Create permission body
     $revokePermissionBody = [PSCustomObject]@{
@@ -199,12 +191,12 @@ try {
 
         $outputContext.AuditLogs.Add([PSCustomObject]@{
                 # Action  = "" # Optional
-                Message = "Revoked group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+                Message = "Revoked group [$($actionContext.PermissionDisplayName)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
                 IsError = $false
             })
     }
     else {
-        Write-Warning "DryRun: Would revoke group [$($actionContext.References.Permission.Name)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
+        Write-Warning "DryRun: Would revoke group [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
     }
     #endregion Revoke permission
 }

@@ -1,9 +1,8 @@
-#####################################################
-# HelloID-Conn-Prov-Target-Zenya-Permissions-Grant
-# Grant groupmembership to account
+#################################################
+# HelloID-Conn-Prov-Target-Zenya-Import
+# Correlate to account
 # PowerShell V2
-#####################################################
-
+#################################################
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
@@ -72,54 +71,16 @@ function Resolve-ZenyaError {
         Write-Output $httpErrorObj
     }
 }
-
-function Convert-StringToBoolean($obj) {
-    if ($obj -is [PSCustomObject]) {
-        foreach ($property in $obj.PSObject.Properties) {
-            $value = $property.Value
-            if ($value -is [string]) {
-                $lowercaseValue = $value.ToLower()
-                if ($lowercaseValue -eq "true") {
-                    $obj.$($property.Name) = $true
-                }
-                elseif ($lowercaseValue -eq "false") {
-                    $obj.$($property.Name) = $false
-                }
-            }
-            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
-                $obj.$($property.Name) = Convert-StringToBoolean $value
-            }
-            elseif ($value -is [System.Collections.IList]) {
-                for ($i = 0; $i -lt $value.Count; $i++) {
-                    $value[$i] = Convert-StringToBoolean $value[$i]
-                }
-                $obj.$($property.Name) = $value
-            }
-        }
-    }
-    return $obj
-}
 #endregion functions
 
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
-    #region Create access token
     $actionMessage = "creating access token"
-
     $createAccessTokenBody = @{
         grant_type                = "client_credentials"
         client_id                 = $actionContext.Configuration.clientId
         client_secret             = $actionContext.Configuration.clientSecret
         token_expiration_disabled = $false
     }
-
     $createAccessTokenSplatParams = @{
         Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
         Headers         = $headers
@@ -130,75 +91,81 @@ try {
         Verbose         = $false
         ErrorAction     = "Stop"
     }
-
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
-
     Write-Information "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
-    #endregion Create access token
-
-    #region Create headers
+    
     $actionMessage = "creating headers"
-
     $headers = @{
         "Accept"       = "application/json"
         "Content-Type" = "application/json;charset=utf-8"
     }
-
     Write-Information "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
-
-    # Add Authorization after printing splat
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
-    #endregion Create headers
 
-    #region Grant permission
-    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup
-    $actionMessage = "granting group [$($actionContext.PermissionDisplayName)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
+    # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest
+    $actionMessage = "querying Zenya accounts"
+    $accounts = @()
+    $pageSize = 100
+    $pageStart = 1
+    do {
+        $uri = "$($actionContext.Configuration.serviceAddress)/scim/users?startIndex=$pageStart&count=$pageSize"
+        $splatParams = @{
+            Uri             = $uri
+            Headers         = $headers
+            Method          = "GET"
+            ContentType     = "application/json;charset=utf-8"
+            UseBasicParsing = $true
+            Verbose         = $false
+            ErrorAction     = "Stop"
+        }
+        $response = Invoke-RestMethod @splatParams
+        $partialResultUsers = $response.resources
+        $accounts += $partialResultUsers
+        $pageStart = $pageStart + $pageSize
+        Write-Information "Successfully queried [$($accounts.count)] existing accounts"
+    } while ($partialResultUsers.Count -eq $pageSize)
 
-    # Create permission body
-    $grantPermissionBody = [PSCustomObject]@{
-        schemas    = @("urn:ietf:params:scim:schemas:core:2.0:Group")
-        id         = $actionContext.References.Permission.id
-        operations = @(
-            @{
-                op    = "add"
-                path  = "members"
-                value = @(
-                    @{
-                        value   = $actionContext.References.Account.Id
-                        display = $actionContext.References.Account.UserName
-                    }
-                )
+    # Map the imported data to the account field mappings
+    foreach ($account in $accounts) {
+        $outputData = [PSCustomObject]@{}
+        foreach ($prop in $account.PSObject.Properties) {
+            if ($prop.Name -eq 'emails') {
+                $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
             }
-        )
-    }
-    
-    $grantPermissionSplatParams = @{
-        Uri         = "$($actionContext.Configuration.serviceAddress)/scim/groups/$($actionContext.References.Permission.Id)"
-        Method      = "PATCH"
-        Body        = ($grantPermissionBody | ConvertTo-Json -Depth 10)
-        ContentType = 'application/json; charset=utf-8'
-        Verbose     = $false
-        ErrorAction = "Stop"
-    }
+            elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                $manager = $prop.Value.manager.value
+                if ($manager) {
+                    $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                }
+                $department = $prop.Value.department
+                if ($department) {
+                    $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                }
+            }
+            else {
+                $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+            }
+        }
 
-    Write-Information "SplatParams: $($grantPermissionSplatParams | ConvertTo-Json)"
-
-    if (-Not($actionContext.DryRun -eq $true)) {
-        # Add header after printing splat
-        $grantPermissionSplatParams['Headers'] = $headers
-
-        $grantPermissionResponse = Invoke-RestMethod @grantPermissionSplatParams
-
-        $outputContext.AuditLogs.Add([PSCustomObject]@{
-                # Action  = "" # Optional
-                Message = "Granted group [$($actionContext.PermissionDisplayName)] with id [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-                IsError = $false
-            })
+        # Make sure the DisplayName has a value
+        if ([string]::IsNullOrEmpty($account.displayName)) {
+            $account.displayName = $account.id
+        }
+        # Make sure the Username has a value
+        if ([string]::IsNullOrEmpty($account.userName)) {
+            $account.userName = $account.id
+        }
+        # Return the result
+        Write-Output @{
+            AccountReference = $account.id
+            DisplayName      = $account.displayName
+            UserName         = $account.userName
+            Enabled          = $account.active
+            Data             = $outputData
+        }
     }
-    else {
-        Write-Warning "DryRun: Would grant group [$($actionContext.References.Permission.id)] to account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)."
-    }
-    #endregion Grant permission
+    Write-Information 'Target account import completed'
+
 }
 catch {
     $ex = $PSItem
@@ -212,21 +179,6 @@ catch {
         $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
         $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
-
     Write-Warning $warningMessage
-    
-    $outputContext.AuditLogs.Add([PSCustomObject]@{
-            # Action  = "" # Optional
-            Message = $auditMessage
-            IsError = $true
-        })
-}
-finally {
-    # Check if auditLogs contains errors, if no errors are found, set success to true
-    if ($outputContext.AuditLogs.IsError -contains $true) {
-        $outputContext.Success = $false
-    }
-    else {
-        $outputContext.Success = $true
-    }
+    Write-Error $auditMessage
 }

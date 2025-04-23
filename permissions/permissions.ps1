@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Permissions-Groups-List
 # List groups as permissions
-# Version: 2.0.0
+# PowerShell V2
 #####################################################
 
 # Enable TLS1.2
@@ -102,14 +102,6 @@ function Convert-StringToBoolean($obj) {
 #endregion functions
 
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Create access token
     $actionMessage = "creating access token"
 

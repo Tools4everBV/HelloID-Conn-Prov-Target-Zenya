@@ -103,7 +103,7 @@ function Convert-StringToBoolean($obj) {
 #region account
 # Define correlation
 $correlationField = $actionContext.CorrelationConfiguration.accountField
-$correlationValue = $actionContext.CorrelationConfiguration.accountFieldValue
+$correlationValue = $actionContext.CorrelationConfiguration.personFieldValue
 
 $account = [PSCustomObject]$actionContext.Data
 
@@ -141,14 +141,6 @@ try {
         Write-Warning "Correlation is disabled."
     }
     #endregion Verify correlation configuration and properties
-
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
 
     #region Create access token
     $actionMessage = "creating access token"
@@ -237,7 +229,28 @@ try {
                 id       = $correlatedAccount.id
                 userName = $correlatedAccount.userName
             }
-            $outputContext.Data = $correlatedAccount
+
+            $outputData = [PSCustomObject]@{}
+            $outputObject = $correlatedAccount | Select-Object -First 1
+            foreach ($prop in $outputObject.PSObject.Properties) {
+                if ($prop.Name -eq 'emails') {
+                    $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                }
+                elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                    $manager = $prop.Value.manager.value
+                    if ($manager) {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                    }
+                    $department = $prop.Value.department
+                    if ($department) {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                    }
+                }
+                else {
+                    $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                }
+            }
+            $outputContext.Data = $outputData
     
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     Action  = "CorrelateAccount" # Optionally specify a different action for this audit log
@@ -327,7 +340,28 @@ try {
                     id       = $createdAccount.id
                     userName = $createdAccount.userName
                 }
-                $outputContext.Data = $createdAccount
+
+                $outputData = [PSCustomObject]@{}
+                $outputObject = $createdAccount | Select-Object -First 1
+                foreach ($prop in $outputObject.PSObject.Properties) {
+                    if ($prop.Name -eq 'emails') {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                    }
+                    elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                        $manager = $prop.Value.manager.value
+                        if ($manager) {
+                            $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                        }
+                        $department = $prop.Value.department
+                        if ($department) {
+                            $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                        }
+                    }
+                    else {
+                        $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                    }
+                }
+                $outputContext.Data = $outputData
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         # Action  = "" # Optional

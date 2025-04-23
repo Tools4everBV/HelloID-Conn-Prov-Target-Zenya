@@ -1,7 +1,7 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Delete
 # Delete account
-# Version: 2.0.0
+# PowerShell V2
 #####################################################
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -107,14 +107,6 @@ $correlationValue = $actionContext.References.Account.Id
 #endRegion account
 
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Verify account reference
     $actionMessage = "verifying account reference"
     
