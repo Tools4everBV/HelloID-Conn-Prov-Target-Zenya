@@ -147,7 +147,7 @@ try {
     $actionMessage = "querying Groups"
 
     $groups = [System.Collections.ArrayList]@()
-    $skip = 0
+    $skip = 1
     $take = 100
     do {
         $getGroupsSplatParams = @{
