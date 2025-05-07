@@ -210,9 +210,6 @@ catch {
         $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
     
-    # Set Success to false
-    $outputContext.Success = $false
-
     Write-Warning $warningMessage
 
     # Required to write an error as the listing of permissions doesn't show auditlog

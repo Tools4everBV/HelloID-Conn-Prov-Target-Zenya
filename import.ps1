@@ -126,7 +126,7 @@ try {
     } while ($partialResultUsers.Count -eq $pageSize)
 
     # Map the imported data to the account field mappings
-    foreach ($account in $accounts) {
+    foreach ($account in $accounts) {  
         $outputData = [PSCustomObject]@{}
         foreach ($prop in $account.PSObject.Properties) {
             if ($prop.Name -eq 'emails') {
@@ -151,13 +151,12 @@ try {
         if ([string]::IsNullOrEmpty($account.displayName)) {
             $account.displayName = $account.id
         }
-        # Make sure the Username has a value
-        if ([string]::IsNullOrEmpty($account.userName)) {
-            $account.userName = $account.id
-        }
         # Return the result
         Write-Output @{
-            AccountReference = $account.id
+            AccountReference = @{
+                id       = $account.id
+                userName = $account.userName
+            }
             DisplayName      = $account.displayName
             UserName         = $account.userName
             Enabled          = $account.active
