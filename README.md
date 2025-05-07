@@ -38,7 +38,7 @@ The following features are available:
 | **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic |
 | **Resources**                       | ✅         | -                                       |                    |
 | **Entitlement Import: Accounts**    | ✅         | -                                       |                    |
-| **Entitlement Import: Permissions** | ❌         | -                                       |                    |
+| **Entitlement Import: Permissions** | ✅         | -                                       |                    |
 
 ## Requirements
 
