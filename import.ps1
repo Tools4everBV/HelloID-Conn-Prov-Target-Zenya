@@ -103,14 +103,13 @@ try {
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
 
     # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest
-    $actionMessage = "querying Zenya accounts"
-    $accounts = @()
-    $pageSize = 100
-    $pageStart = 1
+    $actionMessage = "querying users"
+    $users = [System.Collections.ArrayList]@()
+    $skip = 1
+    $take = 100
     do {
-        $uri = "$($actionContext.Configuration.serviceAddress)/scim/users?startIndex=$pageStart&count=$pageSize"
-        $splatParams = @{
-            Uri             = $uri
+        $getUsersSplatParams = @{
+            Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users?startIndex=$($skip)&count=$($take)"
             Headers         = $headers
             Method          = "GET"
             ContentType     = "application/json;charset=utf-8"
@@ -118,15 +117,19 @@ try {
             Verbose         = $false
             ErrorAction     = "Stop"
         }
-        $response = Invoke-RestMethod @splatParams
-        $partialResultUsers = $response.resources
-        $accounts += $partialResultUsers
-        $pageStart = $pageStart + $pageSize
-        Write-Information "Successfully queried [$($accounts.count)] existing accounts"
-    } while ($partialResultUsers.Count -eq $pageSize)
+        $getUsersResponse = Invoke-RestMethod @getUsersSplatParams
+        if ($getUsersResponse.Resources -is [array]) {
+            [void]$users.AddRange($getUsersResponse.Resources)
+        }
+        else {
+            [void]$users.Add($getUsersResponse.Resources)
+        }
+        $skip += $take
+    } while ($users.Count -lt $getUsersResponse.totalResults)
+    Write-Information "Queried Users. Result count: $($users.Count)"
 
     # Map the imported data to the account field mappings
-    foreach ($account in $accounts) {  
+    foreach ($account in $users) {  
         $outputData = [PSCustomObject]@{}
         foreach ($prop in $account.PSObject.Properties) {
             if ($prop.Name -eq 'emails') {
