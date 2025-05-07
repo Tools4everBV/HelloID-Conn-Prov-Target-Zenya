@@ -77,33 +77,6 @@ function Resolve-ZenyaError {
         Write-Output $httpErrorObj
     }
 }
-
-function Convert-StringToBoolean($obj) {
-    if ($obj -is [PSCustomObject]) {
-        foreach ($property in $obj.PSObject.Properties) {
-            $value = $property.Value
-            if ($value -is [string]) {
-                $lowercaseValue = $value.ToLower()
-                if ($lowercaseValue -eq "true") {
-                    $obj.$($property.Name) = $true
-                }
-                elseif ($lowercaseValue -eq "false") {
-                    $obj.$($property.Name) = $false
-                }
-            }
-            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
-                $obj.$($property.Name) = Convert-StringToBoolean $value
-            }
-            elseif ($value -is [System.Collections.IList]) {
-                for ($i = 0; $i -lt $value.Count; $i++) {
-                    $value[$i] = Convert-StringToBoolean $value[$i]
-                }
-                $obj.$($property.Name) = $value
-            }
-        }
-    }
-    return $obj
-}
 #endregion functions
 
 try {
@@ -160,7 +133,7 @@ try {
     $actionMessage = "querying Groups"
 
     $groups = [System.Collections.ArrayList]@()
-    $skip = 0
+    $skip = 1
     $take = 100
     do {
         $getGroupsSplatParams = @{
@@ -281,7 +254,7 @@ try {
                 # Add header after printing splat
                 $revokePermissionSplatParams['Headers'] = $headers
 
-                $revokePermissionResponse = Invoke-RestMethod @revokePermissionSplatParams
+                $null = Invoke-RestMethod @revokePermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         Action  = "RevokePermission"
@@ -345,7 +318,7 @@ try {
                 # Add header after printing splat
                 $grantPermissionSplatParams['Headers'] = $headers
 
-                $grantPermissionResponse = Invoke-RestMethod @grantPermissionSplatParams
+                $null = Invoke-RestMethod @grantPermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         Action  = "GrantPermission"

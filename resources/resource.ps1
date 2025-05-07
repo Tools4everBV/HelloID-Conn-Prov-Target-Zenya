@@ -72,33 +72,6 @@ function Resolve-ZenyaError {
         Write-Output $httpErrorObj
     }
 }
-
-function Convert-StringToBoolean($obj) {
-    if ($obj -is [PSCustomObject]) {
-        foreach ($property in $obj.PSObject.Properties) {
-            $value = $property.Value
-            if ($value -is [string]) {
-                $lowercaseValue = $value.ToLower()
-                if ($lowercaseValue -eq "true") {
-                    $obj.$($property.Name) = $true
-                }
-                elseif ($lowercaseValue -eq "false") {
-                    $obj.$($property.Name) = $false
-                }
-            }
-            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
-                $obj.$($property.Name) = Convert-StringToBoolean $value
-            }
-            elseif ($value -is [System.Collections.IList]) {
-                for ($i = 0; $i -lt $value.Count; $i++) {
-                    $value[$i] = Convert-StringToBoolean $value[$i]
-                }
-                $obj.$($property.Name) = $value
-            }
-        }
-    }
-    return $obj
-}
 #endregion functions
 
 try {
@@ -147,7 +120,7 @@ try {
     $actionMessage = "querying Groups"
 
     $groups = [System.Collections.ArrayList]@()
-    $skip = 0
+    $skip = 1
     $take = 100
     do {
         $getGroupsSplatParams = @{
