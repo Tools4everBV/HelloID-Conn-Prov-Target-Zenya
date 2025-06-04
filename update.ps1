@@ -1,18 +1,10 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-Update
 # Update account
-# Version: 2.0.0
+# PowerShell V2
 #####################################################
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
-
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
 
 #region functions
 function Resolve-ZenyaError {
@@ -115,14 +107,6 @@ $correlationValue = $actionContext.References.Account.Id
 
 $account = [PSCustomObject]$actionContext.Data
 
-# Remove properties of account object with null-values
-$account.PsObject.Properties | ForEach-Object {
-    # Remove properties with null-values
-    if ($_.Value -eq $null) {
-        $account.PsObject.Properties.Remove("$($_.Name)")
-    }
-}
-
 # Convert the properties containing "TRUE" or "FALSE" to boolean
 $account = Convert-StringToBoolean $account
 
@@ -144,14 +128,6 @@ $accountPropertiesToCompare = $account.PsObject.Properties.Name
 #endRegion account
 
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Verify account reference
     $actionMessage = "verifying account reference"
     
@@ -183,7 +159,7 @@ try {
 
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
 
-    Write-Verbose "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
+    Write-Information "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
     #endregion Create access token
 
     #region Create headers
@@ -194,7 +170,7 @@ try {
         "Content-Type" = "application/json;charset=utf-8"
     }
 
-    Write-Verbose "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
+    Write-Information "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
 
     # Add Authorization after printing splat
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
@@ -217,13 +193,35 @@ try {
     $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
     $correlatedAccount = $getZenyaAccountResponse
 
-    Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
+    Write-Information "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
     #endregion Get account
 
     #region Account
     #region Calulate action
     $actionMessage = "calculating action"
     if (($correlatedAccount | Measure-Object).count -eq 1) {
+        $outputPreviousData = [PSCustomObject]@{}
+        $outputPreviousDataObject = $correlatedAccount | Select-Object -First 1
+        foreach ($prop in $outputPreviousDataObject.PSObject.Properties) {
+            if ($prop.Name -eq 'emails') {
+                $outputPreviousData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+            }
+            elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                $manager = $prop.Value.manager.value
+                if ($manager) {
+                    $outputPreviousData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                }
+                $department = $prop.Value.department
+                if ($department) {
+                    $outputPreviousData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                }
+            }
+            else {
+                $outputPreviousData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+            }
+        }
+        $outputContext.PreviousData = $outputPreviousData
+
         $actionMessage = "comparing current account to mapped properties"
 
         # Create previous account object to compare current data with specified account data - Only keep properties that are mapped
@@ -249,9 +247,6 @@ try {
         if ($true -eq $actionContext.Configuration.setManager) {
             $previousAccount | Add-Member -MemberType NoteProperty -Name "Manager" -Value $correlatedAccount."urn:ietf:params:scim:schemas:extension:enterprise:2.0:User".Manager.Value -Force
         }
-
-        # Set Previous data (if there are no changes between PreviousData and Data, HelloID will log "update finished with no changes")
-        $outputContext.PreviousData = $previousAccount
 
         # Create reference object from previous account
         $accountReferenceObject = [PSCustomObject]@{}
@@ -279,31 +274,13 @@ try {
         }
 
         if ($accountNewProperties) {
-            # Create custom object with old and new values
-            $accountChangedPropertiesObject = [PSCustomObject]@{
-                OldValues = @{}
-                NewValues = @{}
-            }
-
-            # Add the old properties to the custom object with old and new values
-            foreach ($accountoOldProperty in $accountOldProperties) {
-                $accountChangedPropertiesObject.OldValues.$($accountoOldProperty.Name) = $accountoOldProperty.Value
-            }
-
-            # Add the new properties to the custom object with old and new values
-            foreach ($accountNewProperty in $accountNewProperties) {
-                $accountChangedPropertiesObject.NewValues.$($accountNewProperty.Name) = $accountNewProperty.Value
-            }
-
-            Write-Verbose "Changed properties: $($accountChangedPropertiesObject | ConvertTo-Json)"
-
             $actionAccount = "Update"
         }
         else {
             $actionAccount = "NoChanges"
         }            
 
-        Write-Verbose "Compared current account to mapped properties. Result: $actionAccount"
+        Write-Information "Compared current account to mapped properties. Result: $actionAccount"
     }
     elseif (($correlatedAccount | Measure-Object).count -eq 0) {
         $actionAccount = "NotFound"
@@ -374,7 +351,7 @@ try {
                 ErrorAction = "Stop"
             }
 
-            Write-Verbose "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
+            Write-Information "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat
@@ -382,16 +359,36 @@ try {
 
                 $updateAccountResponse = Invoke-RestMethod @updateAccountSplatParams
 
-                $outputContext.Data = $account
+                $outputData = [PSCustomObject]@{}
+                $outputObject = $updateAccountResponse | Select-Object -First 1
+                foreach ($prop in $outputObject.PSObject.Properties) {
+                    if ($prop.Name -eq 'emails') {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                    }
+                    elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                        $manager = $prop.Value.manager.value
+                        if ($manager) {
+                            $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                        }
+                        $department = $prop.Value.department
+                        if ($department) {
+                            $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                        }
+                    }
+                    else {
+                        $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                    }
+                }
+                $outputContext.Data = $outputData
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         # Action  = "" # Optional
-                        Message = "Updated account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Updated properties: $($accountChangedPropertiesObject | ConvertTo-Json -Depth 10)."
+                        Message = "Updated account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). updated: [$($accountNewProperties.name -join ',')]"
                         IsError = $false
                     })
             }
             else {
-                Write-Warning "DryRun: Would update account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). Updated properties: $($accountChangedPropertiesObject | ConvertTo-Json -Depth 10)."
+                Write-Warning "DryRun: Would update account with AccountReference: $($outputContext.AccountReference | ConvertTo-Json). updated: [$($accountNewProperties.name -join ',')]"
             }
             #endregion Update account
 
@@ -402,7 +399,7 @@ try {
             #region No changes
             $actionMessage = "skipping updating account"
 
-            $outputContext.Data = $correlatedAccount
+            $outputContext.Data = $outputPreviousData
 
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     # Action  = "" # Optional

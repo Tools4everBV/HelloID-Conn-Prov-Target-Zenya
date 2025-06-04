@@ -1,18 +1,10 @@
 #####################################################
 # HelloID-Conn-Prov-Target-Zenya-SubPermissions-Groups-All
 # Grants/revokes All groups
-# Version: 2.0.0
+# PowerShell V2
 #####################################################
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
-
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
 
 # Determine all the sub-permissions that needs to be Granted/Updated/Revoked
 $currentPermissions = @{}
@@ -85,44 +77,9 @@ function Resolve-ZenyaError {
         Write-Output $httpErrorObj
     }
 }
-
-function Convert-StringToBoolean($obj) {
-    if ($obj -is [PSCustomObject]) {
-        foreach ($property in $obj.PSObject.Properties) {
-            $value = $property.Value
-            if ($value -is [string]) {
-                $lowercaseValue = $value.ToLower()
-                if ($lowercaseValue -eq "true") {
-                    $obj.$($property.Name) = $true
-                }
-                elseif ($lowercaseValue -eq "false") {
-                    $obj.$($property.Name) = $false
-                }
-            }
-            elseif ($value -is [PSCustomObject] -or $value -is [System.Collections.IDictionary]) {
-                $obj.$($property.Name) = Convert-StringToBoolean $value
-            }
-            elseif ($value -is [System.Collections.IList]) {
-                for ($i = 0; $i -lt $value.Count; $i++) {
-                    $value[$i] = Convert-StringToBoolean $value[$i]
-                }
-                $obj.$($property.Name) = $value
-            }
-        }
-    }
-    return $obj
-}
 #endregion functions
 
 try {
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Verify account reference
     $actionMessage = "verifying account reference"
     
@@ -154,7 +111,7 @@ try {
 
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
 
-    Write-Verbose "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
+    Write-Information "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
     #endregion Create access token
 
     #region Create headers
@@ -165,7 +122,7 @@ try {
         "Content-Type" = "application/json;charset=utf-8"
     }
 
-    Write-Verbose "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
+    Write-Information "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
 
     # Add Authorization after printing splat
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
@@ -187,7 +144,7 @@ try {
             ErrorAction = "Stop"
         }
 
-        Write-Verbose "SplatParams: $($getGroupsSplatParams | ConvertTo-Json)"
+        Write-Information "SplatParams: $($getGroupsSplatParams | ConvertTo-Json)"
 
         # Add header after printing splat
         $getGroupsSplatParams['Headers'] = $headers
@@ -204,6 +161,7 @@ try {
         $skip += $take
     } while (($groups | Measure-Object).Count -lt $getGroupsResponse.totalResults)
 
+    $groups = $groups | Sort-Object id -unique
     Write-Information "Queried Groups. Result count: $(($groups | Measure-Object).Count)"
     #endregion Get Groups
 
@@ -219,7 +177,7 @@ try {
         foreach ($contract in $personContext.Person.Contracts) {
             $actionMessage = "calulating group for resource: $($resource | ConvertTo-Json)"
 
-            Write-Verbose "Contract: $($contract.ExternalId). In condition: $($contract.Context.InConditions)"
+            Write-Information "Contract: $($contract.ExternalId). In condition: $($contract.Context.InConditions)"
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $true)) {
                 # Get group to use objectGuid to avoid name change issues
                 $correlationField = "externalId"
@@ -291,13 +249,13 @@ try {
                 ErrorAction = "Stop"
             }
 
-            Write-Verbose "SplatParams: $($revokePermissionSplatParams | ConvertTo-Json)"
+            Write-Information "SplatParams: $($revokePermissionSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat
                 $revokePermissionSplatParams['Headers'] = $headers
 
-                $revokePermissionResponse = Invoke-RestMethod @revokePermissionSplatParams
+                $null = Invoke-RestMethod @revokePermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         Action  = "RevokePermission"
@@ -355,13 +313,13 @@ try {
                 ErrorAction = "Stop"
             }
 
-            Write-Verbose "SplatParams: $($grantPermissionSplatParams | ConvertTo-Json)"
+            Write-Information "SplatParams: $($grantPermissionSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat
                 $grantPermissionSplatParams['Headers'] = $headers
 
-                $grantPermissionResponse = Invoke-RestMethod @grantPermissionSplatParams
+                $null = Invoke-RestMethod @grantPermissionSplatParams
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         Action  = "GrantPermission"

@@ -11,13 +11,13 @@
 
 - [HelloID-Conn-Prov-Target-Zenya](#helloid-conn-prov-target-zenya)
   - [Table of Contents](#table-of-contents)
+  - [Supported  features](#supported--features)
   - [Requirements](#requirements)
   - [Remarks](#remarks)
     - [Department Management](#department-management)
     - [SCIM API Limitations](#scim-api-limitations)
     - [Manager Field in Field Mapping](#manager-field-in-field-mapping)
   - [Introduction](#introduction)
-    - [Actions](#actions)
   - [Getting Started](#getting-started)
     - [Create a Provider in Zenya](#create-a-provider-in-zenya)
     - [Allowing Users and Groups Created by Zenya to Be Returned in the SCIM Service](#allowing-users-and-groups-created-by-zenya-to-be-returned-in-the-scim-service)
@@ -27,6 +27,18 @@
     - [Connection Settings](#connection-settings)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
+
+## Supported  features
+
+The following features are available:
+
+| Feature                             | Supported | Actions                                 | Remarks            |
+| ----------------------------------- | --------- | --------------------------------------- | ------------------ |
+| **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete |                    |
+| **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic |
+| **Resources**                       | ✅         | -                                       |                    |
+| **Entitlement Import: Accounts**    | ✅         | -                                       |                    |
+| **Entitlement Import: Permissions** | ❌         | -                                       |                    |
 
 ## Requirements
 
@@ -74,22 +86,6 @@ The following API endpoints are utilized by this connector:
 | [/scim/groups](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetGroupsRequest)      | Get groups (GET)     |
 | [/scim/groups](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostGroupRequest)      | Create group (POST)  |
 | [/scim/groups/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchGroup)       | Update group (PATCH) |
-
-### Actions
-
-| Action                 | Description                                                | Comment                                        |
-| ---------------------- | ---------------------------------------------------------- | ---------------------------------------------- |
-| `create.ps1`           | Create (or update) and correlate a user account            |                                                |
-| `enable.ps1`           | Enable a user account                                      |                                                |
-| `update.ps1`           | Update a user account                                      |                                                |
-| `disable.ps1`          | Disable a user account                                     |                                                |
-| `delete.ps1`           | Delete a user account                                      | Be cautious; deleted users cannot be restored. |
-| `permissions.ps1`      | Retrieve all groups and provide them as entitlements       |                                                |
-| `grantPermission.ps1`  | Add a user account to a group                              |                                                |
-| `revokePermission.ps1` | Remove a user account from a group                         |                                                |
-| `subPermissions.ps1`   | Add/remove a user account to/from a group                  |                                                |
-| `resourceCreation.ps1` | Create a group for a specified resource (e.g., department) |                                                |
-
 
 ## Getting Started
 

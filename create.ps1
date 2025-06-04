@@ -6,14 +6,6 @@
 # Enable TLS1.2
 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-# Set debug logging
-switch ($actionContext.Configuration.isDebug) {
-    $true { $VerbosePreference = "Continue" }
-    $false { $VerbosePreference = "SilentlyContinue" }
-}
-$InformationPreference = "Continue"
-$WarningPreference = "Continue"
-
 #region functions
 function Resolve-ZenyaError {
     [CmdletBinding()]
@@ -111,7 +103,7 @@ function Convert-StringToBoolean($obj) {
 #region account
 # Define correlation
 $correlationField = $actionContext.CorrelationConfiguration.accountField
-$correlationValue = $actionContext.CorrelationConfiguration.accountFieldValue
+$correlationValue = $actionContext.CorrelationConfiguration.personFieldValue
 
 $account = [PSCustomObject]$actionContext.Data
 
@@ -150,14 +142,6 @@ try {
     }
     #endregion Verify correlation configuration and properties
 
-    #region Verify account reference
-    $actionMessage = "verifying account reference"
-    
-    if ([string]::IsNullOrEmpty($($actionContext.References.Account))) {
-        throw "The account reference could not be found"
-    }
-    #endregion Verify account reference
-
     #region Create access token
     $actionMessage = "creating access token"
 
@@ -181,7 +165,7 @@ try {
 
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
 
-    Write-Verbose "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
+    Write-Information "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
     #endregion Create access token
 
     #region Create headers
@@ -192,7 +176,7 @@ try {
         "Content-Type" = "application/json;charset=utf-8"
     }
 
-    Write-Verbose "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
+    Write-Information "Created headers. Result (without Authorization): $($headers | ConvertTo-Json)."
 
     # Add Authorization after printing splat
     $headers['Authorization'] = "$($createAccessTokenResonse.token_type) $($createAccessTokenResonse.access_token)"
@@ -217,7 +201,7 @@ try {
         $getZenyaAccountResponse = Invoke-RestMethod @getZenyaAccountSplatParams
         $correlatedAccount = $getZenyaAccountResponse.resources
 
-        Write-Verbose "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
+        Write-Information "Queried Zenya account where [$($correlationField)] = [$($correlationValue)]. Result: $($correlatedAccount | ConvertTo-Json)"
         #endregion Get account
     }
 
@@ -245,7 +229,28 @@ try {
                 id       = $correlatedAccount.id
                 userName = $correlatedAccount.userName
             }
-            $outputContext.Data = $correlatedAccount
+
+            $outputData = [PSCustomObject]@{}
+            $outputObject = $correlatedAccount | Select-Object -First 1
+            foreach ($prop in $outputObject.PSObject.Properties) {
+                if ($prop.Name -eq 'emails') {
+                    $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                }
+                elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                    $manager = $prop.Value.manager.value
+                    if ($manager) {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                    }
+                    $department = $prop.Value.department
+                    if ($department) {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                    }
+                }
+                else {
+                    $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                }
+            }
+            $outputContext.Data = $outputData
     
             $outputContext.AuditLogs.Add([PSCustomObject]@{
                     Action  = "CorrelateAccount" # Optionally specify a different action for this audit log
@@ -322,7 +327,7 @@ try {
                 ErrorAction = "Stop"
             }
 
-            Write-Verbose "SplatParams: $($createAccountSplatParams | ConvertTo-Json)"
+            Write-Information "SplatParams: $($createAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat
@@ -335,7 +340,28 @@ try {
                     id       = $createdAccount.id
                     userName = $createdAccount.userName
                 }
-                $outputContext.Data = $createdAccount
+
+                $outputData = [PSCustomObject]@{}
+                $outputObject = $createdAccount | Select-Object -First 1
+                foreach ($prop in $outputObject.PSObject.Properties) {
+                    if ($prop.Name -eq 'emails') {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                    }
+                    elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                        $manager = $prop.Value.manager.value
+                        if ($manager) {
+                            $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                        }
+                        $department = $prop.Value.department
+                        if ($department) {
+                            $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                        }
+                    }
+                    else {
+                        $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                    }
+                }
+                $outputContext.Data = $outputData
 
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         # Action  = "" # Optional

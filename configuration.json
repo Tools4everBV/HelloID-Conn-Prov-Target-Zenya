@@ -52,15 +52,5 @@
       "required": false,
       "description": "Please note: We can only assign a manager who exists in Zenya and was created by HelloID. HelloID must first grant the Account entitlement to the manager."
     }
-  },
-  {
-    "key": "isDebug",
-    "type": "checkbox",
-    "defaultValue": false,
-    "templateOptions": {
-      "label": "Toggle debug logging",
-      "description": "When toggled, debug logging will be displayed",
-      "required": false
-    }
   }
 ]
