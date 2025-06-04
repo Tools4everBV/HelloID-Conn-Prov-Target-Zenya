@@ -105,7 +105,7 @@ try {
     # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest
     $actionMessage = "querying users"
     $users = [System.Collections.ArrayList]@()
-    $skip = 1
+    $skip = 0
     $take = 100
     do {
         $getUsersSplatParams = @{
@@ -126,6 +126,7 @@ try {
         }
         $skip += $take
     } while ($users.Count -lt $getUsersResponse.totalResults)
+    $users = $users | Sort-Object id -unique
     Write-Information "Queried Users. Result count: $($users.Count)"
 
     # Map the imported data to the account field mappings
