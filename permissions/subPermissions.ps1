@@ -133,7 +133,7 @@ try {
     $actionMessage = "querying Groups"
 
     $groups = [System.Collections.ArrayList]@()
-    $skip = 1
+    $skip = 0
     $take = 100
     do {
         $getGroupsSplatParams = @{
@@ -161,6 +161,7 @@ try {
         $skip += $take
     } while (($groups | Measure-Object).Count -lt $getGroupsResponse.totalResults)
 
+    $groups = $groups | Sort-Object id -unique
     Write-Information "Queried Groups. Result count: $(($groups | Measure-Object).Count)"
     #endregion Get Groups
 
