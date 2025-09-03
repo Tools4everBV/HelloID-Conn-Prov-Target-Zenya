@@ -39,6 +39,7 @@ The following features are available:
 | **Resources**                       | ✅         | -                                       |                    |
 | **Entitlement Import: Accounts**    | ✅         | -                                       |                    |
 | **Entitlement Import: Permissions** | ❌         | -                                       |                    |
+| **Governance Reconciliation Resolutions** | ✅        | Disable, Delete                    |                    |
 
 ## Requirements
 
