@@ -105,6 +105,13 @@ function Convert-StringToBoolean($obj) {
 $correlationField = "Id"
 $correlationValue = $actionContext.References.Account.Id
 
+if ($actionContext.Origin -eq 'reconciliation') {
+    $data = [pscustomobject]@{ 
+        active = $false
+    }
+    $actionContext | Add-Member -MemberType NoteProperty -Name 'data' -Value $data -Force
+}
+
 $account = [PSCustomObject]$actionContext.Data
 
 # Convert the properties containing "TRUE" or "FALSE" to boolean

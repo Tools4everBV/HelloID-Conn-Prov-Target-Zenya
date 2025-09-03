@@ -32,13 +32,14 @@
 
 The following features are available:
 
-| Feature                             | Supported | Actions                                 | Remarks            |
-| ----------------------------------- | --------- | --------------------------------------- | ------------------ |
-| **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete |                    |
-| **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic |
-| **Resources**                       | ✅         | -                                       |                    |
-| **Entitlement Import: Accounts**    | ✅         | -                                       |                    |
-| **Entitlement Import: Permissions** | ✅         | -                                       |                    |
+| Feature                                   | Supported | Actions                                 | Remarks            |
+| ----------------------------------------- | --------- | --------------------------------------- | ------------------ |
+| **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete |                    |
+| **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic |
+| **Resources**                             | ✅         | -                                       |                    |
+| **Entitlement Import: Accounts**          | ✅         | -                                       |                    |
+| **Entitlement Import: Permissions**       | ✅         | -                                       |                    |
+| **Governance Reconciliation Resolutions** | ✅         | Revoke, Disable, Delete                 |                    |
 
 ## Requirements
 
