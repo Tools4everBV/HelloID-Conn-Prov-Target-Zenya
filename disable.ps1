@@ -105,6 +105,13 @@ function Convert-StringToBoolean($obj) {
 $correlationField = "Id"
 $correlationValue = $actionContext.References.Account.Id
 
+if ($actionContext.Origin -eq 'reconciliation') {
+    $data = [pscustomobject]@{ 
+        active = $false
+    }
+    $actionContext | Add-Member -MemberType NoteProperty -Name 'data' -Value $data -Force
+}
+
 $account = [PSCustomObject]$actionContext.Data
 
 # Convert the properties containing "TRUE" or "FALSE" to boolean
@@ -295,6 +302,7 @@ try {
         "Update" {
             #region Update account
             # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchUser
+
             $actionMessage = "updating account with AccountReference: $($actionContext.References.Account | ConvertTo-Json)"
 
             # Create custom account object for update and set with default properties and values
@@ -341,6 +349,7 @@ try {
                     }
                 }
             }
+   
 
             $updateAccountSplatParams = @{
                 Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
