@@ -93,7 +93,7 @@ try {
     }
     $createAccessTokenResonse = Invoke-RestMethod @createAccessTokenSplatParams
     Write-Information "Created access token. Expires in: $($createAccessTokenResonse.expires_in | ConvertTo-Json)"
-    
+
     $actionMessage = "creating headers"
     $headers = @{
         "Accept"       = "application/json"
@@ -104,7 +104,6 @@ try {
 
     # API docs: https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest
     $actionMessage = "querying users"
-    $users = [System.Collections.ArrayList]@()
     $skip = 0
     $take = 100
     do {
@@ -118,57 +117,46 @@ try {
             ErrorAction     = "Stop"
         }
         $getUsersResponse = Invoke-RestMethod @getUsersSplatParams
-        if ($getUsersResponse.Resources -is [array]) {
-            [void]$users.AddRange($getUsersResponse.Resources)
-        }
-        else {
-            [void]$users.Add($getUsersResponse.Resources)
+        foreach ($account in $getUsersResponse.Resources) {
+            $outputData = [PSCustomObject]@{}
+            foreach ($prop in $account.PSObject.Properties) {
+                if ($prop.Name -eq 'emails') {
+                    $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                }
+                elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
+                    $manager = $prop.Value.manager.value
+                    if ($manager) {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
+                    }
+                    $department = $prop.Value.department
+                    if ($department) {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
+                    }
+                }
+                else {
+                    $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
+                }
+            }
+
+            # Make sure the DisplayName has a value
+            if ([string]::IsNullOrEmpty($account.displayName)) {
+                $account.displayName = $account.id
+            }
+            # Return the result
+            Write-Output @{
+                AccountReference = @{
+                    id       = $account.id
+                    userName = $account.userName
+                }
+                DisplayName      = $account.displayName
+                UserName         = $account.userName
+                Enabled          = $account.active
+                Data             = $outputData
+            }
         }
         $skip += $take
     } while ($users.Count -lt $getUsersResponse.totalResults)
-    $users = $users | Sort-Object id -unique
-    Write-Information "Queried Users. Result count: $($users.Count)"
-
-    # Map the imported data to the account field mappings
-    foreach ($account in $users) {  
-        $outputData = [PSCustomObject]@{}
-        foreach ($prop in $account.PSObject.Properties) {
-            if ($prop.Name -eq 'emails') {
-                $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
-            }
-            elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
-                $manager = $prop.Value.manager.value
-                if ($manager) {
-                    $outputData | Add-Member -MemberType NoteProperty -Name 'manager' -Value $manager -Force
-                }
-                $department = $prop.Value.department
-                if ($department) {
-                    $outputData | Add-Member -MemberType NoteProperty -Name 'department' -Value $department -Force
-                }
-            }
-            else {
-                $outputData | Add-Member -MemberType NoteProperty -Name $prop.Name -Value $prop.Value -Force
-            }
-        }
-
-        # Make sure the DisplayName has a value
-        if ([string]::IsNullOrEmpty($account.displayName)) {
-            $account.displayName = $account.id
-        }
-        # Return the result
-        Write-Output @{
-            AccountReference = @{
-                id       = $account.id
-                userName = $account.userName
-            }
-            DisplayName      = $account.displayName
-            UserName         = $account.userName
-            Enabled          = $account.active
-            Data             = $outputData
-        }
-    }
     Write-Information 'Target account import completed'
-
 }
 catch {
     $ex = $PSItem
