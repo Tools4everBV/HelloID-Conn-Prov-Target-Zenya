@@ -148,13 +148,13 @@ try {
 
     $createAccessTokenBody = @{
         grant_type                = "client_credentials"
-        client_id                 = $actionContext.Configuration.clientId
-        client_secret             = $actionContext.Configuration.clientSecret
+        client_id                 = $actionContext.Configuration.ScimClientId
+        client_secret             = $actionContext.Configuration.ScimClientSecret
         token_expiration_disabled = $false
     }
 
     $createAccessTokenSplatParams = @{
-        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Uri             = "$($actionContext.Configuration.ScimBaseUrl)/oauth/token"
         Headers         = $headers
         Method          = "POST"
         ContentType     = "application/json"
@@ -188,7 +188,7 @@ try {
     $actionMessage = "querying Zenya account where [$($correlationField)] = [$($correlationValue)]"
 
     $getZenyaAccountSplatParams = @{
-        Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
+        Uri             = "$($actionContext.Configuration.ScimBaseUrl)/scim/users/$($actionContext.References.Account.Id)"
         Headers         = $headers
         Method          = "GET"
         ContentType     = "application/json;charset=utf-8"
@@ -352,7 +352,7 @@ try {
    
 
             $updateAccountSplatParams = @{
-                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users/$($actionContext.References.Account.Id)"
+                Uri         = "$($actionContext.Configuration.ScimBaseUrl)/scim/users/$($actionContext.References.Account.Id)"
                 Method      = "PATCH"
                 Body        = ([System.Text.Encoding]::UTF8.GetBytes(($updateAccountBody | ConvertTo-Json -Depth 10)))
                 ContentType = 'application/json; charset=utf-8'
