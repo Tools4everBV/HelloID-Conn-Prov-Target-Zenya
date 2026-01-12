@@ -77,12 +77,12 @@ try {
     $actionMessage = "creating access token"
     $createAccessTokenBody = @{
         grant_type                = "client_credentials"
-        client_id                 = $actionContext.Configuration.clientId
-        client_secret             = $actionContext.Configuration.clientSecret
+        client_id                 = $actionContext.Configuration.ScimClientId
+        client_secret             = $actionContext.Configuration.ScimClientSecret
         token_expiration_disabled = $false
     }
     $createAccessTokenSplatParams = @{
-        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Uri             = "$($actionContext.Configuration.ScimBaseUrl)/oauth/token"
         Headers         = $headers
         Method          = "POST"
         ContentType     = "application/json"
@@ -109,7 +109,7 @@ try {
     $take = 100
     do {
         $getUsersSplatParams = @{
-            Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users?startIndex=$($skip)&count=$($take)"
+            Uri             = "$($actionContext.Configuration.ScimBaseUrl)/scim/users?startIndex=$($skip)&count=$($take)"
             Headers         = $headers
             Method          = "GET"
             ContentType     = "application/json;charset=utf-8"
@@ -158,8 +158,7 @@ try {
         # Return the result
         Write-Output @{
             AccountReference = @{
-                id       = $account.id
-                userName = $account.userName
+                id       = $account.id                
             }
             DisplayName      = $account.displayName
             UserName         = $account.userName

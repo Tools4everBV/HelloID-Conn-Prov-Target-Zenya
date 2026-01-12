@@ -147,13 +147,13 @@ try {
 
     $createAccessTokenBody = @{
         grant_type                = "client_credentials"
-        client_id                 = $actionContext.Configuration.clientId
-        client_secret             = $actionContext.Configuration.clientSecret
+        client_id                 = $actionContext.Configuration.scimclientId
+        client_secret             = $actionContext.Configuration.scimclientSecret
         token_expiration_disabled = $false
     }
 
     $createAccessTokenSplatParams = @{
-        Uri             = "$($actionContext.Configuration.serviceAddress)/oauth/token"
+        Uri             = "$($actionContext.Configuration.ScimBaseUrl)/oauth/token"
         Headers         = $headers
         Method          = "POST"
         ContentType     = "application/json"
@@ -189,7 +189,7 @@ try {
 
         $filter = "$($correlationField) eq `"$($correlationValue)`""
         $getZenyaAccountSplatParams = @{
-            Uri             = "$($actionContext.Configuration.serviceAddress)/scim/users?filter=$([System.Uri]::EscapeDataString($filter))"
+            Uri             = "$($actionContext.Configuration.ScimBaseUrl)/scim/users?filter=$([System.Uri]::EscapeDataString($filter))"
             Headers         = $headers
             Method          = "GET"
             ContentType     = "application/json;charset=utf-8"
@@ -226,8 +226,7 @@ try {
             $actionMessage = "correlating to account"
     
             $outputContext.AccountReference = [PSCustomObject]@{
-                id       = $correlatedAccount.id
-                userName = $correlatedAccount.userName
+                id       = $correlatedAccount.id              
             }
 
             $outputData = [PSCustomObject]@{}
@@ -319,7 +318,7 @@ try {
             }
 
             $createAccountSplatParams = @{
-                Uri         = "$($actionContext.Configuration.serviceAddress)/scim/users"
+                Uri         = "$($actionContext.Configuration.ScimBaseUrl)/scim/users"
                 Method      = "POST"
                 Body        = ($createAccountBody | ConvertTo-Json -Depth 10)
                 ContentType = 'application/json; charset=utf-8'
@@ -337,8 +336,7 @@ try {
                 $createdAccount = $createAccountResponse
 
                 $outputContext.AccountReference = [PSCustomObject]@{
-                    id       = $createdAccount.id
-                    userName = $createdAccount.userName
+                    id       = $createdAccount.id                  
                 }
 
                 $outputData = [PSCustomObject]@{}

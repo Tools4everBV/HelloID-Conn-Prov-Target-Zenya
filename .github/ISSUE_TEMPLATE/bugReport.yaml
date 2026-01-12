@@ -1,0 +1,43 @@
+name: Bug report 🐛
+description: Report errors or unexpected behavior 🤔
+labels: [bug, needs-triage]
+body:
+- type: textarea
+  attributes:
+    label: Describe the issue and include the steps in order to reproduce the issue.
+    description: >
+      List of steps, sample code to reproduce the issue.
+    placeholder: >
+      I am experiencing a problem with X.
+      I think Y should be happening but Z is actually happening.
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Expected behavior
+    render: console
+    placeholder: |
+      PS> 
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Actual behavior
+    render: console
+    placeholder: |
+      PS> 
+  validations:
+    required: true
+- type: textarea
+  attributes:
+    label: Error details
+    description: Paste verbatim output from the error object if PowerShell returns an error.
+    render: console
+    placeholder: PS>
+- type: textarea
+  attributes:
+    label: Visuals
+    description: >
+      Please upload images or animations that can be used to reproduce issues in the area below.
+      Try the [Steps Recorder](https://support.microsoft.com/en-us/windows/record-steps-to-reproduce-a-problem-46582a9b-620f-2e36-00c9-04e25d784e47)
+      on Windows or [Screenshot](https://support.apple.com/en-us/HT208721) on macOS.

@@ -1,32 +1,32 @@
 [
   {
-    "key": "serviceAddress",
+    "key": "ScimBaseUrl",
     "type": "input",
     "defaultValue": "https://identitymanagement.services.zenya.work",
     "templateOptions": {
-      "label": "Service Address",
+      "label": "Scim Base Url",
       "placeholder": "https://identitymanagement.services.zenya.work",
       "description": "The Service Address of the SCIM endpoint",
       "required": true
     }
   },
   {
-    "key": "clientId",
+    "key": "ScimClientId",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "Client ID",
+      "label": "Scim Client ID",
       "placeholder": "39b65e84-9f34-11ee-8c90-0242ac120002",
       "description": "The Client ID of the Provider for External User Management in Zenya",
       "required": true
     }
   },
   {
-    "key": "clientSecret",
+    "key": "ScimClientSecret",
     "type": "input",
     "defaultValue": "",
     "templateOptions": {
-      "label": "Client Secret",
+      "label": "Scim Client Secret",
       "type": "password",
       "placeholder": "35ff6bdc-9f34-11ee-8c90-0242ac120002",
       "description": "The Client Secret of the Provider for External User Management in Zenya",
@@ -34,7 +34,7 @@
     }
   },
   {
-    "key": "setDepartment",
+    "key": "SetDepartment",
     "type": "checkbox",
     "defaultValue": false,
     "templateOptions": {
@@ -44,13 +44,47 @@
     }
   },
   {
-    "key": "setManager",
+    "key": "SetManager",
     "type": "checkbox",
     "defaultValue": false,
     "templateOptions": {
       "label": "Set manager in Zenya",
       "required": false,
       "description": "Please note: We can only assign a manager who exists in Zenya and was created by HelloID. HelloID must first grant the Account entitlement to the manager."
+    }
+  },
+  {
+    "key": "ApiBaseUrl",
+    "type": "input",
+    "defaultValue": "https://<mytenant>.zenya<-env>.nl",
+    "templateOptions": {
+      "label": "Api Base Url",
+      "placeholder": "https://<mytenant>.zenya<-env>.nl",
+      "description": "The Service Address of the API endpoint",
+      "required": true
+    }
+  },
+  {
+    "key": "ApiClientId",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Api Client ID",
+      "placeholder": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "description": "The Client ID of the Provider for External User Management in Zenya",
+      "required": true
+    }
+  },
+  {
+    "key": "ApiClientSecret",
+    "type": "input",
+    "defaultValue": "",
+    "templateOptions": {
+      "label": "Api Client Secret",
+      "type": "password",
+      "placeholder": "abcd1234!@#$5678%^&*()_+abcd1234!@#$5678%^&*()_+",
+      "description": "The Client Secret of the Provider for External User Management in Zenya",
+      "required": true
     }
   }
 ]
