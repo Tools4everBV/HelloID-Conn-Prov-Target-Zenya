@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
 
-### [3.0.0]  2026-01-15
+## [3.0.0]  2026-01-15
 
 ### Added 
  - Added permission import script for groups 
