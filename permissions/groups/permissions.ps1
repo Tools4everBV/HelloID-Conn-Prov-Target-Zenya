@@ -158,7 +158,7 @@ try {
                     @{
                         DisplayName    = $displayName
                         Identification = @{
-                            Reference = $importedGroup.user_group_id
+                            Id = $importedGroup.user_group_id
                         }
                     }
                 )

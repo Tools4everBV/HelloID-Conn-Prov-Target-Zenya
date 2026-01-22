@@ -172,7 +172,7 @@ try {
             }
 
             $splatRevokeGroupMember = @{
-                Uri = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/$($actionContext.References.Permission.Reference)"
+                Uri = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/$($actionContext.References.Permission.Id)"
                 Method   = "PATCH"
                 Body = ($revokePermissionBody | ConvertTo-Json -Depth 10)                   
                 Headers = $apiHeaders
@@ -181,15 +181,15 @@ try {
             if (-not($actionContext.DryRun -eq $true)) {
                 try {                   
                
-                    Write-Information "Revoking Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)]"
+                    Write-Information "Revoking Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)]"
                     $null = Invoke-RestMethod @splatRevokeGroupMember        
                  }
                 catch {
                     if ($_.Exception.Response.StatusCode -eq 404) {
-                        Write-Warning "The Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)] could not be found, skipping revocation."
+                        Write-Warning "The Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)] could not be found, skipping revocation."
                         $outputContext.AuditLogs.Add([PSCustomObject]@{
                                 Action  = "RevokePermission"
-                                Message = "The Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)] could not be found, skipping revocation."
+                                Message = "The Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)] could not be found, skipping revocation."
                                 IsError = $false
                             }) 
                       }                                              
@@ -199,7 +199,7 @@ try {
                 }
             }
             else {
-                Write-Information "[DryRun] Revoke Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)], will be executed during enforcement"
+                Write-Information "[DryRun] Revoke Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)], will be executed during enforcement"
             }
 
             $outputContext.Success = $true

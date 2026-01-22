@@ -170,18 +170,18 @@ try {
             }
 
             $splatGrantGroupMember = @{
-                Uri = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/$($actionContext.References.Permission.Reference)"
+                Uri = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/$($actionContext.References.Permission.Id)"
                 Method   = "PATCH"
                 Body = ($grantPermissionBody | ConvertTo-Json -Depth 10)                   
                 Headers = $apiHeaders
             }
 
             if (-not($actionContext.DryRun -eq $true)) {
-                Write-Information "Granting Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)]"
+                Write-Information "Granting Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)]"
                 $null = Invoke-RestMethod @splatGrantGroupMember        
             }
             else {
-                Write-Information "[DryRun] Grant Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)], will be executed during enforcement"
+                Write-Information "[DryRun] Grant Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)], will be executed during enforcement"
             }
 
             $outputContext.Success = $true
