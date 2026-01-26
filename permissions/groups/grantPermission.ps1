@@ -96,7 +96,7 @@ function Get-AuthToken {
 
         $body = @{
             client_id     = $ClientID
-            client_secret = $ClientSecret            
+            client_secret = $ClientSecret
             grant_type    = 'client_credentials'
         }
 
@@ -109,43 +109,43 @@ function Get-AuthToken {
 #endregion functions
 
 try {
-    #region Verify account reference    
-    
+    #region Verify account reference
+
     if ([string]::IsNullOrEmpty($($actionContext.References.Account.id))) {
         throw "The account reference could not be found"
     }
-    #endregion Verify account reference  
+    #endregion Verify account reference
     $splatScimToken = @{
         ClientId     = $actionContext.Configuration.ScimClientId
         ClientSecret = $actionContext.Configuration.scimclientSecret
-        TokenUri     = "$($ActionContext.Configuration.ScimBaseUrl)/oauth/token"  
-    }    
+        TokenUri     = "$($ActionContext.Configuration.ScimBaseUrl)/oauth/token"
+    }
     $scimToken = Get-AuthToken @splatScimToken
 
-    $splatApiToken = @{       
+    $splatApiToken = @{
         clientId     = $actionContext.Configuration.ApiClientId
         clientSecret = $actionContext.Configuration.ApiClientSecret
-        TokenUri      = "$($ActionContext.Configuration.ApiBaseUrl)/api/oauth/token"  
+        TokenUri      = "$($ActionContext.Configuration.ApiBaseUrl)/api/oauth/token"
     }
     $apiToken = Get-AuthToken @splatApiToken
 
-    #endregion Create access token   
+    #endregion Create access token
 
     #region Create headers
-    $ScimHeaders = @{        
-        "Content-Type" = "application/json;charset=utf-8"        
-    }   
-    $scimHeaders['Authorization'] = "$($scimToken.token_type) $($scimToken.access_token)"  
-    
+    $ScimHeaders = @{
+        "Content-Type" = "application/json;charset=utf-8"
+    }
+    $scimHeaders['Authorization'] = "$($scimToken.token_type) $($scimToken.access_token)"
+
     $apiHeaders = @{
         "Accept"        = "application/json"
         "Content-Type"  = "application/json;charset=utf-8"
         "X-Api-Version" = 5
-    }   
-    $apiHeaders['Authorization'] = "$($apiToken.token_type) $($apiToken.access_token)"  
+    }
+    $apiHeaders['Authorization'] = "$($apiToken.token_type) $($apiToken.access_token)"
     #endregion Create headers
 
-    
+
     Write-Information 'Verifying if a Zenya account exists'
     $splatGetUser = @{
         Uri     = "$($actionContext.Configuration.ScimBaseUrl)/scim/Users/$($actionContext.References.Account.id)"
@@ -162,26 +162,26 @@ try {
     }
 
     switch ($action) {
-        'GrantPermission' {         
-          
-                    
+        'GrantPermission' {
+
+
             $grantPermissionBody = @{
                 "add_user_ids" = @($($actionContext.References.Account.Id))
             }
 
             $splatGrantGroupMember = @{
-                Uri = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/$($actionContext.References.Permission.Reference)"
+                Uri = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/$($actionContext.References.Permission.Id)"
                 Method   = "PATCH"
-                Body = ($grantPermissionBody | ConvertTo-Json -Depth 10)                   
+                Body = ($grantPermissionBody | ConvertTo-Json -Depth 10)
                 Headers = $apiHeaders
             }
 
             if (-not($actionContext.DryRun -eq $true)) {
-                Write-Information "Granting Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)]"
-                $null = Invoke-RestMethod @splatGrantGroupMember        
+                Write-Information "Granting Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)]"
+                $null = Invoke-RestMethod @splatGrantGroupMember
             }
             else {
-                Write-Information "[DryRun] Grant Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Reference)], will be executed during enforcement"
+                Write-Information "[DryRun] Grant Zenya permission: [$($actionContext.PermissionDisplayName)] - [$($actionContext.References.Permission.Id)], will be executed during enforcement"
             }
 
             $outputContext.Success = $true
@@ -227,4 +227,3 @@ catch {
 
 
 
-    

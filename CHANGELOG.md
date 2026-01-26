@@ -2,9 +2,11 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.1.0]  2026-01-22
+### Changed
+   - Fix:  In version 3.0.0 the permission reference field name was accidentally renamed (from ".Id" to .Reference). This has been rolled back.
 
 ## [3.0.0]  2026-01-15
-
 ### Added 
  - Added permission import script for groups 
 ### Changed

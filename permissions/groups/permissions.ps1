@@ -94,7 +94,7 @@ function Get-AuthToken {
 
         $body = @{
             client_id     = $ClientID
-            client_secret = $ClientSecret            
+            client_secret = $ClientSecret
             grant_type    = 'client_credentials'
         }
 
@@ -109,64 +109,64 @@ function Get-AuthToken {
 
 try {
     #region Create access token
-    $actionMessage = "creating access token"    
-     $splatApiToken = @{       
+    $actionMessage = "creating access token"
+     $splatApiToken = @{
         clientId     = $actionContext.Configuration.ApiClientId
         clientSecret = $actionContext.Configuration.ApiClientSecret
-        TokenUri      = "$($ActionContext.Configuration.ApiBaseUrl)/api/oauth/token"  
+        TokenUri      = "$($ActionContext.Configuration.ApiBaseUrl)/api/oauth/token"
     }
     $apiToken = Get-AuthToken @splatApiToken
-  
+
     #endregion Create access token
 
     $headers = @{
         "Accept"        = "application/json"
         "Content-Type"  = "application/json;charset=utf-8"
         "X-Api-Version" = 5
-    }   
-    $headers['Authorization'] = "$($apiToken.token_type) $($apiToken.access_token)"    
+    }
+    $headers['Authorization'] = "$($apiToken.token_type) $($apiToken.access_token)"
 
-   
+
     Write-Information 'Retrieving permissions (groups)'
-    #region Get Groups  
+    #region Get Groups
     # Api docs https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroups
-    $actionMessage = "querying Groups"  
+    $actionMessage = "querying Groups"
     $skip = 0
-    $take = 100   
+    $take = 100
     do {
         $getGroupsSplatParams = @{
             Uri     = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups?offset=$($skip)&envelope=true&include_total=true&limit=$($take)"
             Method  = "GET"
-            Headers = $headers            
-        } 
+            Headers = $headers
+        }
 
         $getGroupsResponse = Invoke-RestMethod @getGroupsSplatParams
-        $result = $getGroupsResponse.Data  
+        $result = $getGroupsResponse.Data
         foreach ($importedGroup in $result) {
             if (($importedGroup.user_group_type -ne "synced") -and ($importedGroup.user_group_type -ne "system")) {
-                
+
                 if ([string]::IsNullOrEmpty($importedGroup.name))
-                {                  
-                     $displayName = "Group - $($importedGroup.user_group_id))"
+                {
+                     $displayName = "Group - $($importedGroup.user_group_id)"
                 }
                 else {
-                    $displayName = "Group - $($importedGroup.name))"
+                    $displayName = "Group - $($importedGroup.name)"
                     $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length))
-                }              
-               
+                }
+
                 $outputContext.Permissions.Add(
                     @{
                         DisplayName    = $displayName
                         Identification = @{
-                            Reference = $importedGroup.user_group_id
+                            Id = $importedGroup.user_group_id
                         }
                     }
                 )
             }
-        }        
+        }
         $skip += $getGroupsResponse.pagination.returned
-    } while (($skip -lt $getGroupsResponse.pagination.total) -OR ($getGroupsResponse.pagination.returned -lt 1))    
-      
+    } while (($skip -lt $getGroupsResponse.pagination.total) -OR ($getGroupsResponse.pagination.returned -lt 1))
+
 }
 catch {
     $ex = $PSItem
@@ -180,7 +180,7 @@ catch {
         $auditMessage = "Error $($actionMessage). Error: $($ex.Exception.Message)"
         $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
-    
+
     Write-Warning $warningMessage
 
     # Required to write an error as the listing of permissions doesn't show auditlog
