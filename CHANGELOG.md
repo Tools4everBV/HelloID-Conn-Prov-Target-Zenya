@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.2.0]  2026-02-12
+### Changed
+   - Added strict_validation parameter to group creation API request
+   - Added start_portal parameter with value 100 to group creation request body
+
 ## [3.1.0]  2026-01-22
 ### Changed
    - Fix:  In version 3.0.0 the permission reference field name was accidentally renamed (from ".Id" to .Reference). This has been rolled back.
