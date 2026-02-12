@@ -198,17 +198,18 @@ try {
                 if ([string]::IsNullOrEmpty($resource.Description)) {
                     $Description = $resource.DisplayName
                 }
-                else{
+                else {
                     $Description = $resource.Description
                 }
                 $createGroupBody = [PSCustomObject]@{
                     external_id  = "department_$($resource.ExternalId)"
-                    name = "$($resource.DisplayName)"
-                    description = "$($Description)"
+                    name         = "$($resource.DisplayName)"
+                    description  = "$($Description)"
+                    start_portal = 100
                 }
 
                 $createGroupSplatParams = @{
-                    Uri         = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups"
+                    Uri         = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups?strict_validation=true"
                     Method      = "POST"
                     Body        = ($createGroupBody | ConvertTo-Json -Depth 10)
                     ContentType = 'application/json; charset=utf-8'
@@ -222,18 +223,18 @@ try {
                     # Add header after printing splat
                     $createGroupSplatParams['Headers'] = $headers
 
-                     try {
+                    try {
                         $createGroupResponse = Invoke-RestMethod @createGroupSplatParams                   
                         $createdGroup = $createGroupResponse                        
                     }
                     catch {                      
                         if ($_.Exception.Response.StatusCode -eq 400) {
-                             Write-Warning "The group  [$($createGroupBody.name)] and external_id [$($createGroupBody.external_Id)] could not be created in Zenya because it already exists, skipping creation."
+                            Write-Warning "The group  [$($createGroupBody.name)] and external_id [$($createGroupBody.external_Id)] could not be created in Zenya because it already exists, skipping creation."
                             $outputContext.AuditLogs.Add([PSCustomObject]@{                               
-                                Message = "The group [$($createGroupBody.name)] and external_id [$($createGroupBody.external_Id)] could not be created in Zenya because it already exists, skipping creation."
-                                IsError = $true
-                            })                         
-                          Continue
+                                    Message = "The group [$($createGroupBody.name)] and external_id [$($createGroupBody.external_Id)] could not be created in Zenya because it already exists, skipping creation."
+                                    IsError = $true
+                                })                         
+                            Continue
                         }
                         else {
                             throw
