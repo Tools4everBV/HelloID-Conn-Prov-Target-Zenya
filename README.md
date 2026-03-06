@@ -26,7 +26,6 @@
     - [Development resources](#development-resources) 
       - [API endpoinst](#api-endpoints)
       - [Create a Provider in Zenya](#create-a-provider-in-zenya)
-    - [Allowing Users and Groups Created by Zenya to Be Returned in the SCIM Service](#allowing-users-and-groups-created-by-zenya-to-be-returned-in-the-scim-service)
     - [Provisioning PowerShell V2 connector](#provisioning-powershell-v2-connector)
      
    
@@ -125,16 +124,18 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 - The Zenya SCIM API does not allow for setting or managing user passwords, so Single Sign-On (SSO) is required for user management.
 
-- The SCIM service only returns users (and groups and other objects) that were created by the specific identity provider or are linked to it. This means that accounts that are already existing and created manually in zenya or with an other scim provided in the system cannot be correlated.
+- The SCIM service only returns users (and groups and other objects) that were created by the specific identity provider or are linked to it. This means that accounts that are already existing and created manually in Zenya or with another SCIM provider in the system cannot be correlated.
 
-However, Infoland can perform an operation that allows users created within Zenya to be moved to the Identity provider you registerd for use in HelloId, So these users can be managed. It is adviced that this procedure is performed before creating any users in zenya with helloid.
+> [!IMPORTANT]
+> **SCIM Identifier Conversion Required**
+> 
+> Before implementing this connector, Zenya must perform a one-time operation to convert the SCIM identifiers of all existing users to the HelloID identity provider. This is essential to ensure that pre-existing user accounts can be managed by HelloID.
+> 
+> Contact the Zenya Hosting organization to request this conversion before attempting to correlate or manage existing users.
 
-For user groups and memberships of user groups this procedure cannot be used, as the groups themselves are not exclusively managed by the registered SCIM Provider. For this reason the group memberships are managed by means of the API interface, which does have access to the "normal" groups created with de Zenya Gui. 
+For user groups and memberships of user groups this conversion procedure cannot be used, as the groups themselves are not exclusively managed by the registered SCIM Provider. For this reason the group memberships are managed by means of the API interface, which does have access to the "normal" groups created with the Zenya GUI. 
 
-Note that this also means that the resource scripts that create groups need to use the API interface and not the SCIM interface, as the API interface used int de permissions script in cannot modify groups created with the SCIM interface.
-
-
-- For more information, refer to step 7 in the Zenya documentation: [Zenya Documentation](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
+Note that this also means that the resource scripts that create groups need to use the API interface and not the SCIM interface, as the API interface used in the permissions script cannot modify groups created with the SCIM interface.
 
 ### Manager Field in Field Mapping
 
@@ -170,24 +171,6 @@ To start using the HelloID-Zenya connector, you first need to create a provider 
 2. **Follow Step 3**:
    - Navigate to **Step 3** in the documentation, which provides detailed instructions on how to create a provider in Zenya.
    - Complete the setup by taking note of the required information, including the **Service Address**, **Client ID**, and **Client Secret**.
-
-### Allowing Users and Groups Created by Zenya to Be Returned in the SCIM Service
-
-By default, the SCIM service only returns users and groups that were created by the identity provider or linked to it. However, you can configure Zenya to also return users and groups that were created within Zenya itself.
-
-Follow these steps:
-
-1. **Contact Infoland**:
-   - Reach out to Infoland to request that the SCIM service returns all users , not just those synchronized through the identity provider.
-
-2. **Enable SCIM Service Setting**:
-   - Ensure that the setting to include Zenya-created users in the SCIM service is enabled. This is particularly important if your environment includes users and groups from multiple sources, such as Active Directory and Zenya itself.
-
-3. **Verify Configuration**:
-   - After Infoland enables this setting, verify that all necessary users and groups are being returned by the SCIM service.
-
-For more detailed information, refer to [Step 7 of the Zenya Documentation](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
-
 
 ## Getting help
 > [!TIP]
