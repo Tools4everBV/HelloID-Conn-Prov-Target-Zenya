@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.2.2]  2026-06-15
+### Changed
+   - Fix revoke membership in subpermissions
+
+
 ## [3.2.1]  2026-03-06
 ### Changed
    - Updated the readme to not refer to Zenya settings which have been deprecated

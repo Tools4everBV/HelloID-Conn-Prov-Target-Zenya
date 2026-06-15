@@ -121,7 +121,7 @@ try {
     #endregion Verify account reference
 
     #region Create access token
-   
+
     $actionMessage = "creating access token"    
     $splatApiToken = @{       
         clientId     = $actionContext.Configuration.ApiClientId
@@ -129,7 +129,7 @@ try {
         TokenUri     = "$($ActionContext.Configuration.ApiBaseUrl)/api/oauth/token"  
     }
     $apiToken = Get-AuthToken @splatApiToken
-  
+
     #endregion Create access token
     #region Create headers
     $actionMessage = "creating headers"
@@ -148,7 +148,7 @@ try {
     $skip = 0
     $take = 100     
     do {
-       
+    
         $getGroupsSplatParams = @{
             Uri     = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups?offset=$($skip)&envelope=true&include_total=true&limit=$($take)"
             Method  = "GET"
@@ -172,6 +172,9 @@ try {
     #region Define desired permissions
     $actionMessage = "calculating desired permission"
 
+    # Group on user_group_id to check if group exists (for revoke operation, as user_group_id is unique for a group)
+    $groupsGroupedId = $groups | Group-Object -Property user_group_id -AsHashTable -AsString
+
     # Group on ExternalId to check if group exists (as correlation property has to be unique for a group)
     $groupsGrouped = $groups | Group-Object -Property external_id -AsHashTable -AsString
 
@@ -179,7 +182,7 @@ try {
     if (-Not($actionContext.Operation -eq "revoke")) {
         # Example: Contract Based Logic:
         foreach ($contract in $personContext.Person.Contracts) {          
-          
+        
             if ($contract.Context.InConditions -OR ($actionContext.DryRun -eq $true)) {
                 # Get group to use objectGuid to avoid name change issues
                 $correlationField = "external_id"
@@ -223,7 +226,7 @@ try {
             # API docs:https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PatchUserGroup
             $actionMessage = "revoking group [$($permission.value)] with id [$($permission.name)] from account with AccountReference: $($actionContext.References.Account.Id | ConvertTo-Json)"
 
-            if ($null -eq $groups[$permission.name]) {
+            if ($null -eq $groupsGroupedId[$permission.name]) {
                 Write-Warning "The group [$($permission.value)] with id [$($permission.name)] could not be found in Zenya, skipping revoke."
                 $outputContext.AuditLogs.Add([PSCustomObject]@{
                         Action  = "RevokePermission"
@@ -261,7 +264,7 @@ try {
                         continue
                     }
                     else {
-                           throw $PSItem                       
+                        throw $PSItem                       
                     }
 
                 }
@@ -319,7 +322,6 @@ try {
                     Action  = "GrantPermission"
                     Message = "Granted group [$($permission.value)] with id [$($permission.Name)] to account with AccountReference: $($actionContext.References.Account.id)."
                     IsError = $false
-                  
             })           
             #endregion Grant permission
         }    
