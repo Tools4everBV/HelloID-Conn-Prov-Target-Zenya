@@ -9,26 +9,23 @@
 
 ## Table of Contents
  
-  - [HelloID-Conn-Prov-Target-Zenya](#helloid-conn-prov-target-zenya)
+- [HelloID-Conn-Prov-Target-Zenya](#helloid-conn-prov-target-zenya)
   - [Table of Contents](#table-of-contents)
   - [Introduction](#introduction)
   - [Supported  features](#supported--features)
   - [Getting Started](#getting-started)
-    - [Requirements](#requirements)
-    - [Connection Settings](#connection-settings)
-    - [Correlation Configuration](#correlation-configuration)
-    - [Field mapping](#field-mapping)
-    - [Remarks](#remarks)
-      - [Department Management](#department-management)
-      - [Permission Management](#permission-management)
-      - [SCIM API Limitations](#scim-api-limitations)
-      - [Manager Field in Field Mapping](#manager-field-in-field-mapping)
-    - [Development resources](#development-resources) 
-      - [API endpoinst](#api-endpoints)
-      - [Create a Provider in Zenya](#create-a-provider-in-zenya)
-    - [Provisioning PowerShell V2 connector](#provisioning-powershell-v2-connector)
-     
-   
+  - [Requirements](#requirements)
+    - [Connection settings](#connection-settings)
+      - [Correlation Configuration](#correlation-configuration)
+      - [Field mapping](#field-mapping)
+  - [Remarks](#remarks)
+    - [Department Management](#department-management)
+    - [Permission Management](#permission-management)
+    - [SCIM API Limitations](#scim-api-limitations)
+    - [Manager Field in Field Mapping](#manager-field-in-field-mapping)
+  - [Development resources](#development-resources)
+    - [API endpoints](#api-endpoints)
+    - [Create a Provider in Zenya](#create-a-provider-in-zenya)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
@@ -41,14 +38,14 @@
 
 The following features are available:
 
-| Feature                             | Supported | Actions                                 | Remarks            |
-| ----------------------------------- | --------- | --------------------------------------- | ------------------ |
-| **Account Lifecycle**               | ✅         | Create, Update, Enable, Disable, Delete |                    |
-| **Permissions**                     | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic |
-| **Resources**                       | ✅         | Create                                  | User Groups from contract departments                   |
-| **Entitlement Import: Accounts**    | ✅         | -                                       |                    |
-| **Entitlement Import: Permissions** | ✅         | -                                       |                    |
-| **Governance Reconciliation Resolutions** | ✅        | Disable, Delete                    |                    |
+| Feature                                   | Supported | Actions                                 | Remarks                               |
+| ----------------------------------------- | --------- | --------------------------------------- | ------------------------------------- |
+| **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete |                                       |
+| **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic                    |
+| **Resources**                             | ✅         | Create                                  | User Groups from contract departments |
+| **Entitlement Import: Accounts**          | ✅         | -                                       |                                       |
+| **Entitlement Import: Permissions**       | ✅         | -                                       |                                       |
+| **Governance Reconciliation Resolutions** | ✅         | Disable, Delete                         |                                       |
 
 
 ## Getting Started
@@ -66,15 +63,15 @@ When correlation of pre-existing accounts is required, make sure to contact the 
   The following settings are required to connect to the API.
 
   | Setting          | Description                                                                  | Mandatory                    |
-| ---------------- | ---------------------------------------------------------------------------- | ---------------------------- |
-| ScimBaseUrl      | The SCIM BaseUrl of the SCIM endpoint                                        | Yes                          |
-| ScimClientId     | The SCIM Client ID of the Provider for External User Management in Zenya     | Yes                          |
-| ScimClientSecret | The SCIM Client Secret of the Provider for External User Management in Zenya | Yes                          |
-| SetDepartment    | Checkbox to whether or not to set the department in Zenya                    |                              |
-| SetManager       | Checkbox to whether or not to set the manager in Zenya                       |                              |
-| ApiBaseUrl       | The REST BaseUrl to the API interface                                        | Yes (when using permissions) |
-| ApiClientId      | The REST Client ID of the Registered API client                              | Yes (when using permissions) |
-| ApiClientSecret  | The REST Password to connect to the API                                      | Yes (when using permissions) |
+  | ---------------- | ---------------------------------------------------------------------------- | ---------------------------- |
+  | ScimBaseUrl      | The SCIM BaseUrl of the SCIM endpoint                                        | Yes                          |
+  | ScimClientId     | The SCIM Client ID of the Provider for External User Management in Zenya     | Yes                          |
+  | ScimClientSecret | The SCIM Client Secret of the Provider for External User Management in Zenya | Yes                          |
+  | SetDepartment    | Checkbox to whether or not to set the department in Zenya                    |                              |
+  | SetManager       | Checkbox to whether or not to set the manager in Zenya                       |                              |
+  | ApiBaseUrl       | The REST BaseUrl to the API interface                                        | Yes (when using permissions) |
+  | ApiClientId      | The REST Client ID of the Registered API client                              | Yes (when using permissions) |
+  | ApiClientSecret  | The REST Password to connect to the API                                      | Yes (when using permissions) |
 
 **SCIM and API endpoints**
 Zenya provides both a SCIM endpoint and a API endpoint. For technical reasons (see remarks section), both are required. 
@@ -90,25 +87,16 @@ To properly set up the correlation:
 
 2. Specify the following configuration:
 
-    | Setting                       | Value      |
-    | ----------------------------- | ---------- |
-    | **Person Correlation Field**  | `UserName` |
-    | **Account Correlation Field** | `Username` |
-
-> [!IMPORTANT]
-> Currently, the **Person Correlation Field** (`UserName`) is not used in the correlation process. Only the **Account Correlation Field** (`Username`) is active because `ExternalId` cannot be queried via the SCIM API. 
-> 
-> **However**, configuring the **Person Correlation Field** is advisable to prepare for future updates, such as the upcoming Governance Module. This module will require person-to-account mappings, so setting this field now helps ensure readiness for future features.
-> 
-> Ensure the **Account Correlation Field** is set to `Username` to align with the SCIM API's capabilities. Verify that your setup is supported by the [SCIM API documentation](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest).
+    | Setting                       | Value                        |
+    | ----------------------------- | ---------------------------- |
+    | **Person Correlation Field**  | `Accounts.UserPrincipalName` |
+    | **Account Correlation Field** | `Username`                   |
 
 > [!TIP]
 > _For more information on correlation, please refer to our correlation [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems/correlation.html) pages_.
 
 #### Field mapping
 The field mapping can be imported by using the _fieldMapping.json_ file.
-
-
 
 ## Remarks
 
@@ -149,16 +137,16 @@ Note that this also means that the resource scripts that create groups need to u
 ### API endpoints
 The following API endpoints are utilized by this connector:
 
-| Endpoint                                                                                               | Description          |
-| ------------------------------------------------------------------------------------------------------ | -------------------- |
-| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest)        | Get users (GET)      |
-| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostUserRequest)        | Create user (POST)   |
-| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchUser)         | Update user (PATCH)  |
-| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest) | Delete user (DELETE) |
-| [/api/user_groups](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroups)      | Get groups (GET)     |
-| [/api/user_groups](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PostUserGroup)      | Create group (POST)  |
-| [/api/user_groups/{id}](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PatchUserGroup)   | Update group (PATCH) |
-| [/api/user_groups/members](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroupMembers)  | Get group members (GET) |
+| Endpoint                                                                                                        | Description             |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest)                 | Get users (GET)         |
+| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostUserRequest)                 | Create user (POST)      |
+| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchUser)                  | Update user (PATCH)     |
+| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest)          | Delete user (DELETE)    |
+| [/api/user_groups](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroups)               | Get groups (GET)        |
+| [/api/user_groups](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PostUserGroup)               | Create group (POST)     |
+| [/api/user_groups/{id}](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PatchUserGroup)         | Update group (PATCH)    |
+| [/api/user_groups/members](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroupMembers) | Get group members (GET) |
 
 
 ### Create a Provider in Zenya
@@ -175,9 +163,6 @@ To start using the HelloID-Zenya connector, you first need to create a provider 
 ## Getting help
 > [!TIP]
 > _For more information on how to configure a HelloID PowerShell connector, please refer to our [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems.html) pages_.
-
-> [!TIP]
->  _If you need help, feel free to ask questions on our [forum](https://forum.helloid.com)_.
 
 ## HelloID docs
 The official HelloID documentation can be found at: https://docs.helloid.com/
