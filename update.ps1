@@ -206,6 +206,9 @@ try {
             if ($prop.Name -eq 'emails') {
                 $outputPreviousData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
             }
+            elseif ($prop.Name -eq 'phoneNumbers') {
+                $outputPreviousData | Add-Member -MemberType NoteProperty -Name 'phonenumbers' -Value @($prop.Value.value) -Force
+            }
             elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
                 $manager = $prop.Value.manager.value
                 if ($manager) {
@@ -236,6 +239,17 @@ try {
                 }
             }
             $previousAccount | Add-Member -MemberType NoteProperty -Name emails -Value $emailsObject -Force
+        }
+
+        # Add phonenumber as custom object to account object
+        if ($null -ne $correlatedAccount.PhoneNumbers) {
+            $phoneNumbersObject = [System.Collections.ArrayList]@()
+            foreach ($phoneNumber in $correlatedAccount.PhoneNumbers) {
+                if ($phoneNumber.type -eq "work") {
+                    [void]$phoneNumbersObject.Add("work:$($phoneNumber.value)")
+                }
+            }
+            $previousAccount | Add-Member -MemberType NoteProperty -Name phonenumbers -Value $phoneNumbersObject -Force
         }
 
         # Add department from the extension to previous account object
@@ -333,6 +347,18 @@ try {
                         }
                     }
                 }
+                # Transform and add phonenumbers to account body
+                elseif ($accountNewProperty.Name -eq "PhoneNumbers") {
+                    foreach ($phoneNumber in $accountNewProperty.Value) {
+                        if ($phoneNumber.StartsWith("work:")) {
+                            $updateAccountBody.operations += @{
+                                op    = "replace"
+                                path  = "phoneNumbers[type eq `"work`"].value"
+                                value = $phoneNumber -replace "work:", ""
+                            }
+                        }
+                    }
+                }
                 else {
                     $updateAccountBody.operations += @{
                         op    = "replace"
@@ -351,7 +377,7 @@ try {
                 ErrorAction = "Stop"
             }
 
-            Write-Information "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
+            #Write-Information "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat
@@ -364,6 +390,9 @@ try {
                 foreach ($prop in $outputObject.PSObject.Properties) {
                     if ($prop.Name -eq 'emails') {
                         $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                    }
+                    elseif ($prop.Name -eq 'phoneNumbers') {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'phonenumbers' -Value @($prop.Value.value) -Force
                     }
                     elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
                         $manager = $prop.Value.manager.value
