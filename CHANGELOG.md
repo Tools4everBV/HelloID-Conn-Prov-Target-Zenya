@@ -2,10 +2,20 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.2.3]  2026-08-17
+### Added
+   - Add phone number to account mapping and scripts
+
+### Changed
+   - Update readme with extra instruction
+   - Disable SplatParams debug logging
+
+### Removed
+   - Remove SCIM version of resource script
+
 ## [3.2.2]  2026-06-15
 ### Changed
    - Fix revoke membership in subpermissions
-
 
 ## [3.2.1]  2026-03-06
 ### Changed
