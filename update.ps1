@@ -377,7 +377,7 @@ try {
                 ErrorAction = "Stop"
             }
 
-            #Write-Information "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
+            Write-Information "SplatParams: $($updateAccountSplatParams | ConvertTo-Json)"
 
             if (-Not($actionContext.DryRun -eq $true)) {
                 # Add header after printing splat

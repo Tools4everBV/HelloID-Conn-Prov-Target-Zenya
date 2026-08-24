@@ -217,7 +217,7 @@ try {
                     ErrorAction = "Stop"
                 }
 
-                #Write-Information "SplatParams: $($createGroupSplatParams | ConvertTo-Json)"
+                Write-Information "SplatParams: $($createGroupSplatParams | ConvertTo-Json)"
 
                 if (-Not($actionContext.DryRun -eq $true)) {
                     # Add header after printing splat

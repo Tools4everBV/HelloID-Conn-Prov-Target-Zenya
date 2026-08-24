@@ -8,7 +8,6 @@ All notable changes to this project will be documented in this file. The format 
 
 ### Changed
    - Update readme with extra instruction
-   - Disable SplatParams debug logging
 
 ### Removed
    - Remove SCIM version of resource script

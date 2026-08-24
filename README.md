@@ -26,6 +26,7 @@
   - [Development resources](#development-resources)
     - [API endpoints](#api-endpoints)
     - [Create a Provider in Zenya](#create-a-provider-in-zenya)
+    - [Obtain REST API credentials](#obtain-rest-api-credentials)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
@@ -106,7 +107,7 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 ### Permission Management
 
-- The current subpermission script manages only the goup membership changes that are initiated by Helloid. Manual changes are not detected.
+- The current subpermission script manages only the group membership changes that are initiated by HelloID. Manual changes are not detected.
 
 ### SCIM API Limitations
 
