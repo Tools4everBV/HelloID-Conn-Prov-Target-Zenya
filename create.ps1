@@ -235,6 +235,9 @@ try {
                 if ($prop.Name -eq 'emails') {
                     $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
                 }
+                elseif ($prop.Name -eq 'phoneNumbers') {
+                    $outputData | Add-Member -MemberType NoteProperty -Name 'phonenumbers' -Value @($prop.Value.value) -Force
+                }
                 elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
                     $manager = $prop.Value.manager.value
                     if ($manager) {
@@ -275,7 +278,7 @@ try {
 
             # Add all account properties to account object
             # Ecluded the fields: Emails, Department and Manager. As they are set at as custom object
-            $excludedField = @("Emails", "Department", "Manager")
+            $excludedField = @("Emails", "PhoneNumbers", "Department", "Manager")
             foreach ($accountProperty in $account.PsObject.Properties | Where-Object { $_.Name -notin $excludedField }) {
                 $createAccountBody | Add-Member -MemberType NoteProperty -Name $accountProperty.Name -Value $accountProperty.Value -Force
             }
@@ -294,6 +297,22 @@ try {
                     }
                 }
                 $createAccountBody | Add-Member -MemberType NoteProperty -Name emails -Value $emailsObject -Force
+            }
+
+            # Add phonenumber as custom object to account object
+            if (-not[String]::IsNullOrEmpty($account.PhoneNumbers)) {
+                foreach ($phoneNumber in $account.PhoneNumbers) {
+                    if ($phoneNumber.StartsWith("work:")) {
+                        $phoneNumbersObject = @(
+                            [PSCustomObject]@{
+                                value   = $phoneNumber -replace "work:", ""
+                                type    = "work"
+                                primary = $true
+                            }
+                        )
+                    }
+                }
+                $createAccountBody | Add-Member -MemberType NoteProperty -Name phoneNumbers -Value $phoneNumbersObject -Force
             }
 
             # Add ExtensionObject to account object
@@ -344,6 +363,9 @@ try {
                 foreach ($prop in $outputObject.PSObject.Properties) {
                     if ($prop.Name -eq 'emails') {
                         $outputData | Add-Member -MemberType NoteProperty -Name 'emails' -Value @($prop.Value.value) -Force
+                    }
+                    elseif ($prop.Name -eq 'phoneNumbers') {
+                        $outputData | Add-Member -MemberType NoteProperty -Name 'phonenumbers' -Value @($prop.Value.value) -Force
                     }
                     elseif ($prop.Name -eq 'urn:ietf:params:scim:schemas:extension:enterprise:2.0:User') {
                         $manager = $prop.Value.manager.value

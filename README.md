@@ -26,6 +26,7 @@
   - [Development resources](#development-resources)
     - [API endpoints](#api-endpoints)
     - [Create a Provider in Zenya](#create-a-provider-in-zenya)
+    - [Obtain REST API credentials](#obtain-rest-api-credentials)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
@@ -39,7 +40,7 @@
 The following features are available:
 
 | Feature                                   | Supported | Actions                                 | Remarks                               |
-| ----------------------------------------- | --------- | --------------------------------------- | ------------------------------------- |
+|-------------------------------------------|-----------|-----------------------------------------|---------------------------------------|
 | **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete |                                       |
 | **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic                    |
 | **Resources**                             | ✅         | Create                                  | User Groups from contract departments |
@@ -56,14 +57,14 @@ The following features are available:
 
 - **Registered Provider in Zenya**: Refer to the Zenya documentation for detailed instructions: [Create Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1). 
 
-When correlation of pre-existing accounts is required, make sure to contact the Zenya Hosting orginazation to move the relevant user account to this provider, prior of your correlation attempt, as only user accounts registered to the specific provider can be managed. 
+When correlation of pre-existing accounts is required, make sure to contact the Zenya Hosting organization to move the relevant user account to this provider, prior of your correlation attempt, as only user accounts registered to the specific provider can be managed.
 
 ### Connection settings
 
   The following settings are required to connect to the API.
 
   | Setting          | Description                                                                  | Mandatory                    |
-  | ---------------- | ---------------------------------------------------------------------------- | ---------------------------- |
+  |------------------|------------------------------------------------------------------------------|------------------------------|
   | ScimBaseUrl      | The SCIM BaseUrl of the SCIM endpoint                                        | Yes                          |
   | ScimClientId     | The SCIM Client ID of the Provider for External User Management in Zenya     | Yes                          |
   | ScimClientSecret | The SCIM Client Secret of the Provider for External User Management in Zenya | Yes                          |
@@ -74,7 +75,7 @@ When correlation of pre-existing accounts is required, make sure to contact the 
   | ApiClientSecret  | The REST Password to connect to the API                                      | Yes (when using permissions) |
 
 **SCIM and API endpoints**
-Zenya provides both a SCIM endpoint and a API endpoint. For technical reasons (see remarks section), both are required. 
+Zenya provides both a SCIM endpoint and a API endpoint. For technical reasons (see remarks section), both are required.
 
 - **Concurrent Sessions**: Limit HelloID concurrent sessions to a maximum of 2 to avoid timeout errors, as the Zenya SCIM API has a rate limit on the number of requests per minute.
 
@@ -88,7 +89,7 @@ To properly set up the correlation:
 2. Specify the following configuration:
 
     | Setting                       | Value                        |
-    | ----------------------------- | ---------------------------- |
+    |-------------------------------|------------------------------|
     | **Person Correlation Field**  | `Accounts.UserPrincipalName` |
     | **Account Correlation Field** | `Username`                   |
 
@@ -106,7 +107,7 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 ### Permission Management
 
-- The current subpermission script manages only the goup membership changes that are initiated by Helloid. Manual changes are not detected.
+- The current subpermission script manages only the group membership changes that are initiated by HelloID. Manual changes are not detected.
 
 ### SCIM API Limitations
 
@@ -138,7 +139,7 @@ Note that this also means that the resource scripts that create groups need to u
 The following API endpoints are utilized by this connector:
 
 | Endpoint                                                                                                        | Description             |
-| --------------------------------------------------------------------------------------------------------------- | ----------------------- |
+|-----------------------------------------------------------------------------------------------------------------|-------------------------|
 | [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest)                 | Get users (GET)         |
 | [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostUserRequest)                 | Create user (POST)      |
 | [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchUser)                  | Update user (PATCH)     |
@@ -159,6 +160,10 @@ To start using the HelloID-Zenya connector, you first need to create a provider 
 2. **Follow Step 3**:
    - Navigate to **Step 3** in the documentation, which provides detailed instructions on how to create a provider in Zenya.
    - Complete the setup by taking note of the required information, including the **Service Address**, **Client ID**, and **Client Secret**.
+
+### Obtain REST API credentials
+
+In Zenya an app registration needs to be created. This app registration provides credentials for the REST API and a new Zenya user. The user created during this App registration needs to get rights to maintain user groups.
 
 ## Getting help
 > [!TIP]

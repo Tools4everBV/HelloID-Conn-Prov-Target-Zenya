@@ -187,6 +187,23 @@
           "StoreInAccountData": false
         }
       ]
+    },
+    {
+      "Name": "phonenumbers",
+      "Description": "The user's phone numbers. This must be of the type Array.\n\n**Note:** Currently, only the work phone number is supported in the format: 'work:' + <phone>.",
+      "Type": "Array",
+      "MappingActions": [
+        {
+          "MapForActions": [
+            "Create",
+            "Update"
+          ],
+          "MappingMode": "Complex",
+          "Value": "\"function getPhoneNumbers() {\\r\\n    let phone = Person.Contact.Business.Phone.Mobile;\\r\\n\\r\\n    return [\\r\\n        \\\"work:\\\" + phone\\r\\n    ];\\r\\n}\\r\\n\\r\\ngetPhoneNumbers();\"",
+          "UsedInNotifications": false,
+          "StoreInAccountData": false
+        }
+      ]
     }
   ],
   "UniqueFieldNames": []
