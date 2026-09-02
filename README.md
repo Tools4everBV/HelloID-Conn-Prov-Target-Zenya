@@ -7,17 +7,18 @@
   <img src="https://github.com/Tools4everBV/HelloID-Conn-Prov-Target-Zenya/blob/main/Logo.png?raw=true" alt="Zenya Logo">
 </p>
 
-## Table of Contents
+## Table of contents
  
 - [HelloID-Conn-Prov-Target-Zenya](#helloid-conn-prov-target-zenya)
-  - [Table of Contents](#table-of-contents)
+  - [Table of contents](#table-of-contents)
   - [Introduction](#introduction)
-  - [Supported  features](#supported--features)
-  - [Getting Started](#getting-started)
-  - [Requirements](#requirements)
+  - [Supported features](#supported-features)
+  - [Getting started](#getting-started)
+    - [HelloID Icon URL](#helloid-icon-url)
+    - [Requirements](#requirements)
     - [Connection settings](#connection-settings)
-      - [Correlation Configuration](#correlation-configuration)
-      - [Field mapping](#field-mapping)
+    - [Correlation configuration](#correlation-configuration)
+    - [Field mapping](#field-mapping)
   - [Remarks](#remarks)
     - [Department Management](#department-management)
     - [Permission Management](#permission-management)
@@ -25,17 +26,16 @@
     - [Manager Field in Field Mapping](#manager-field-in-field-mapping)
   - [Development resources](#development-resources)
     - [API endpoints](#api-endpoints)
-    - [Create a Provider in Zenya](#create-a-provider-in-zenya)
-    - [Obtain REST API credentials](#obtain-rest-api-credentials)
+    - [API documentation](#api-documentation)
   - [Getting help](#getting-help)
   - [HelloID docs](#helloid-docs)
 
 ## Introduction
 
- _HelloID-Conn-Prov-Target-Zenya_ is a target connector.  It utilizes a set of SCIM and REST API's That manages user accounts and user permissions in Zenya.
+_HelloID-Conn-Prov-Target-Zenya_ is a target connector. It uses SCIM and REST APIs to manage user accounts, user groups, and permissions in Zenya.
 
 
-## Supported  features
+## Supported features
 
 The following features are available:
 
@@ -45,41 +45,54 @@ The following features are available:
 | **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic                    |
 | **Resources**                             | ✅         | Create                                  | User Groups from contract departments |
 | **Entitlement Import: Accounts**          | ✅         | -                                       |                                       |
-| **Entitlement Import: Permissions**       | ✅         | -                                       |                                       |
+| **Entitlement Import: Permissions**       | ✅⚠️       | -                                       |                                       |
 | **Governance Reconciliation Resolutions** | ✅         | Disable, Delete                         |                                       |
 
+### ⚠️ Entitlement Import: Permissions
+Because the scope of the SCIM and REST API differs, Zenya can return permissions via the REST API related to accounts that cannot be found by HelloID via the SCIM API. This results in a warning in the target snapshot.
 
-## Getting Started
+## Getting started
 
-## Requirements
+### HelloID Icon URL
 
-- **SSO Configuration**: Ensure SSO is configured in the Zenya environment.
+URL of the icon used for the HelloID Provisioning target system:
 
-- **Registered Provider in Zenya**: Refer to the Zenya documentation for detailed instructions: [Create Provider in Zenya](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1). 
+```
+https://raw.githubusercontent.com/Tools4everBV/HelloID-Conn-Prov-Target-Zenya/refs/heads/main/Icon.png
+```
 
-When correlation of pre-existing accounts is required, make sure to contact the Zenya Hosting organization to move the relevant user account to this provider, prior of your correlation attempt, as only user accounts registered to the specific provider can be managed.
+### Requirements
+
+- **SSO configuration**: Configure SSO in the Zenya environment before managing users through this connector.
+
+- **SCIM provider in Zenya**: Create a dedicated SCIM provider for HelloID in Zenya.
+
+- **Migrating an existing user-management source**: Disconnect the existing SCIM provider, i+Sync task, or other external user-management source without deleting users or groups. Verify that the existing users and groups remain in Zenya with a blue user or group icon. Create the HelloID SCIM provider and start provisioning users. HelloID will attempt to create each existing user and receive a user-name conflict. Link the existing user to the HelloID provider in the Zenya UI, then retry the HelloID action. HelloID can then correlate and manage the user. Contact the Zenya servicedesk when assistance is required for this migration.
 
 ### Connection settings
 
-  The following settings are required to connect to the API.
+The following settings are required to connect to the Zenya APIs.
 
-  | Setting          | Description                                                                  | Mandatory                    |
-  |------------------|------------------------------------------------------------------------------|------------------------------|
-  | ScimBaseUrl      | The SCIM BaseUrl of the SCIM endpoint                                        | Yes                          |
-  | ScimClientId     | The SCIM Client ID of the Provider for External User Management in Zenya     | Yes                          |
-  | ScimClientSecret | The SCIM Client Secret of the Provider for External User Management in Zenya | Yes                          |
-  | SetDepartment    | Checkbox to whether or not to set the department in Zenya                    |                              |
-  | SetManager       | Checkbox to whether or not to set the manager in Zenya                       |                              |
-  | ApiBaseUrl       | The REST BaseUrl to the API interface                                        | Yes (when using permissions) |
-  | ApiClientId      | The REST Client ID of the Registered API client                              | Yes (when using permissions) |
-  | ApiClientSecret  | The REST Password to connect to the API                                      | Yes (when using permissions) |
+| Setting          | Description                                                      | Mandatory                                      |
+|------------------|------------------------------------------------------------------|------------------------------------------------|
+| ScimBaseUrl      | Base URL of the SCIM endpoint                                    | Yes                                            |
+| ScimClientId     | Client ID of the Zenya provider for external user management     | Yes                                            |
+| ScimClientSecret | Client secret of the Zenya provider for external user management | Yes                                            |
+| SetDepartment    | Whether to set the department in Zenya                           | No                                             |
+| SetManager       | Whether to set the manager in Zenya                              | No                                             |
+| ApiBaseUrl       | Base URL of the Zenya REST API                                   | Yes, when permissions or group resources apply |
+| ApiClientId      | Client ID of the registered Zenya REST API application           | Yes, when permissions or group resources apply |
+| ApiClientSecret  | Client secret of the registered Zenya REST API application       | Yes, when permissions or group resources apply |
 
-**SCIM and API endpoints**
-Zenya provides both a SCIM endpoint and a API endpoint. For technical reasons (see remarks section), both are required.
+SCIM credentials are used for account lifecycle operations and account entitlement import. REST API credentials are used for permission management, permission entitlement import, and group resources.
 
-- **Concurrent Sessions**: Limit HelloID concurrent sessions to a maximum of 2 to avoid timeout errors, as the Zenya SCIM API has a rate limit on the number of requests per minute.
+> [!IMPORTANT]
+> **Concurrent sessions**
+>
+> Limit HelloID concurrent sessions to a maximum of 2 to avoid timeouts caused by the Zenya SCIM API rate limit.
 
-#### Correlation Configuration
+### Correlation configuration
+
 The correlation configuration specifies which properties are used to match accounts in Zenya with users in HelloID.
 
 To properly set up the correlation:
@@ -96,7 +109,7 @@ To properly set up the correlation:
 > [!TIP]
 > _For more information on correlation, please refer to our correlation [documentation](https://docs.helloid.com/en/provisioning/target-systems/powershell-v2-target-systems/correlation.html) pages_.
 
-#### Field mapping
+### Field mapping
 The field mapping can be imported by using the _fieldMapping.json_ file.
 
 ## Remarks
@@ -113,18 +126,20 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 - The Zenya SCIM API does not allow for setting or managing user passwords, so Single Sign-On (SSO) is required for user management.
 
-- The SCIM service only returns users (and groups and other objects) that were created by the specific identity provider or are linked to it. This means that accounts that are already existing and created manually in Zenya or with another SCIM provider in the system cannot be correlated.
+- The SCIM service returns only users created by, or linked to, the configured identity provider. Users created manually in Zenya or through another provider are not available to HelloID for correlation until they are linked to the HelloID provider.
 
 > [!IMPORTANT]
-> **SCIM Identifier Conversion Required**
+> **Provider Migration Required**
 > 
-> Before implementing this connector, Zenya must perform a one-time operation to convert the SCIM identifiers of all existing users to the HelloID identity provider. This is essential to ensure that pre-existing user accounts can be managed by HelloID.
+> Before HelloID takes over existing users and groups, disconnect the previous user-management source without deleting its objects. For a SCIM provider, select **Ontkoppelen** when removing the provider. For i+Sync, remove the users and groups from the synchronization task before deleting the task. Verify that the objects remain in Zenya with a blue user or group icon, then create the HelloID SCIM provider.
 > 
-> Contact the Zenya Hosting organization to request this conversion before attempting to correlate or manage existing users.
+> An unlinked user retains its user name, so HelloID first receives a user-name conflict when it attempts to create the existing user. Link the user to the HelloID provider in the Zenya UI, then retry the HelloID action; HelloID can then correlate and manage the account.
 
-For user groups and memberships of user groups this conversion procedure cannot be used, as the groups themselves are not exclusively managed by the registered SCIM Provider. For this reason the group memberships are managed by means of the API interface, which does have access to the "normal" groups created with the Zenya GUI. 
+The same provider-linking approach is not available for user groups and their memberships, because groups are not exclusively managed by a SCIM provider. The connector therefore uses the REST API for group management and group membership imports. The REST API also has access to groups created in the Zenya UI.
 
-Note that this also means that the resource scripts that create groups need to use the API interface and not the SCIM interface, as the API interface used in the permissions script cannot modify groups created with the SCIM interface.
+As a result, the REST API can return group memberships for users that are not returned by the SCIM API. HelloID cannot correlate those memberships because the corresponding accounts are absent from the account entitlement import. Only memberships for users visible through the configured SCIM provider can be correlated.
+
+Group resources must also use the REST API, because the REST API used for permissions cannot modify groups created through SCIM.
 
 ### Manager Field in Field Mapping
 
@@ -136,34 +151,24 @@ Note that this also means that the resource scripts that create groups need to u
 ## Development resources
 
 ### API endpoints
-The following API endpoints are utilized by this connector:
 
-| Endpoint                                                                                                        | Description             |
-|-----------------------------------------------------------------------------------------------------------------|-------------------------|
-| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/GetUsersRequest)                 | Get users (GET)         |
-| [/scim/users](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PostUserRequest)                 | Create user (POST)      |
-| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/PatchUser)                  | Update user (PATCH)     |
-| [/scim/users/{id}](https://identitymanagement.services.iprova.nl/swagger-ui/#!/scim/DeleteUserRequest)          | Delete user (DELETE)    |
-| [/api/user_groups](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroups)               | Get groups (GET)        |
-| [/api/user_groups](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PostUserGroup)               | Create group (POST)     |
-| [/api/user_groups/{id}](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/PatchUserGroup)         | Update group (PATCH)    |
-| [/api/user_groups/members](https://swagger.zenya-dev.nl/api/swagger/index.html#/UserGroups/GetUserGroupMembers) | Get group members (GET) |
+The following endpoints are used by the connector. The host names are configured through `ScimBaseUrl` and `ApiBaseUrl`.
 
+| Endpoint                             | HTTP method        | Description                                 |
+|--------------------------------------|--------------------|---------------------------------------------|
+| `ScimBaseUrl/oauth/token`            | POST               | Obtain a SCIM access token                  |
+| `ScimBaseUrl/scim/users`             | GET, POST          | Retrieve and create user accounts           |
+| `ScimBaseUrl/scim/users/{id}`        | GET, PATCH, DELETE | Retrieve, update, and delete a user account |
+| `ApiBaseUrl/api/oauth/token`         | POST               | Obtain a REST API access token              |
+| `ApiBaseUrl/api/user_groups`         | GET, POST          | Retrieve and create user groups             |
+| `ApiBaseUrl/api/user_groups/{id}`    | PATCH              | Update a user group and its memberships     |
+| `ApiBaseUrl/api/user_groups/members` | GET                | Retrieve user group memberships             |
 
-### Create a Provider in Zenya
+### API documentation
 
-To start using the HelloID-Zenya connector, you first need to create a provider in Zenya. Follow these steps:
+- [Zenya REST API Swagger documentation](https://swagger.zenya-dev.nl/api/swagger/index.html)
 
-1. **Access the Zenya Documentation**:
-   - Go to the [Zenya Documentation](https://webshare.zenya.work/DocumentResource/709a648d-6300-4e42-a2a6-54ae02201873/Document.pdf?webshareid=y491fqpfwxhoo0kd&showinlinepdf=1).
-
-2. **Follow Step 3**:
-   - Navigate to **Step 3** in the documentation, which provides detailed instructions on how to create a provider in Zenya.
-   - Complete the setup by taking note of the required information, including the **Service Address**, **Client ID**, and **Client Secret**.
-
-### Obtain REST API credentials
-
-In Zenya an app registration needs to be created. This app registration provides credentials for the REST API and a new Zenya user. The user created during this App registration needs to get rights to maintain user groups.
+Create a REST API application in Zenya when permission management or group resources are enabled. The application provides the REST API credentials and its Zenya user must have permission to maintain user groups.
 
 ## Getting help
 > [!TIP]

@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.2.4] 2026-09-02
+### Fixed
+- Restored `Id` as the group permission identifier in the membership import, allowing imported memberships to correlate with permissions identified by `Identification.Id`.
+- Corrected group-query pagination in the permission import, membership import, and subpermission scripts.
+- Corrected group display name formatting and limited imported membership descriptions to 100 characters.
+
+### Changed
+- Updated the README to document the Zenya provider migration process and the SCIM and REST API visibility limitations.
+
 ## [3.2.3]  2026-08-17
 ### Added
    - Add phone number to account mapping and scripts
