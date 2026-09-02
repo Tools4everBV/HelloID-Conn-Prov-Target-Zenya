@@ -144,18 +144,18 @@ try {
                 # Make sure the displayName has a value
                 if ([string]::IsNullOrEmpty($importedGroup.name))
                 {                  
-                     $displayName = "Group - $($importedGroup.user_group_id))"
+                     $displayName = "Group - $($importedGroup.user_group_id)"
                 }
                 else {
-                    $displayName = "Group - $($importedGroup.name))"
+                    $displayName = "Group - $($importedGroup.name)"
                     $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length))
                 }                           
 
                 $permission = @{
                     PermissionReference = @{
-                        Reference = $importedGroup.user_group_id
+                        Id = $importedGroup.user_group_id
                     }
-                    Description         = "$($importedGroup.description)"
+                    Description         = "$($importedGroup.description)".Substring(0, [System.Math]::Min(100, $importedGroup.description.Length))
                     DisplayName         =  $displayName
                     AccountReferences   = $null
                 }
@@ -186,7 +186,7 @@ try {
             }           
         }        
         $skip += $getGroupsResponse.pagination.returned
-    } while (($skip -lt $getGroupsResponse.pagination.total) -OR ($getGroupsResponse.pagination.returned -lt 1))    
+    } while (($skip -lt $getGroupsResponse.pagination.total) -AND ($getGroupsResponse.pagination.returned -gt 0))
       
     
     Write-Information 'Zenya permission group entitlement import completed'
