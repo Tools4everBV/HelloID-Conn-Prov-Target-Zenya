@@ -6,10 +6,10 @@ All notable changes to this project will be documented in this file. The format 
 ### Fixed
 - Restored `Id` as the group permission identifier in the membership import, allowing imported memberships to correlate with permissions identified by `Identification.Id`.
 - Corrected group-query pagination in the permission import, membership import, and subpermission scripts.
-- Corrected group display name formatting and limited imported membership descriptions to 100 characters.
+- Filtered the group membership import to only include accounts visible via the SCIM API, preventing uncorrelatable memberships from being returned to HelloID.
 
 ### Changed
-- Updated the README to document the Zenya provider migration process and the SCIM and REST API visibility limitations.
+- Updated the README to document the Zenya provider migration process and clarify that both entitlement imports are limited to the SCIM provider's scope.
 
 ## [3.2.3]  2026-08-17
 ### Added
