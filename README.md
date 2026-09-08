@@ -44,12 +44,12 @@ The following features are available:
 | **Account Lifecycle**                     | ✅         | Create, Update, Enable, Disable, Delete |                                       |
 | **Permissions**                           | ✅         | Retrieve, Grant, Revoke                 | Static and Dynamic                    |
 | **Resources**                             | ✅         | Create                                  | User Groups from contract departments |
-| **Entitlement Import: Accounts**          | ✅         | -                                       |                                       |
-| **Entitlement Import: Permissions**       | ✅⚠️       | -                                       |                                       |
+| **Entitlement Import: Accounts**          | ✅         | -                                       | Limited to the SCIM provider's scope  |
+| **Entitlement Import: Permissions**       | ✅         | -                                       | Limited to the SCIM provider's scope  |
 | **Governance Reconciliation Resolutions** | ✅         | Disable, Delete                         |                                       |
 
-### ⚠️ Entitlement Import: Permissions
-Because the scope of the SCIM and REST API differs, Zenya can return permissions via the REST API related to accounts that cannot be found by HelloID via the SCIM API. This results in a warning in the target snapshot.
+### Entitlement Import: Accounts and Permissions
+Both entitlement imports are limited to the scope of the SCIM API: only accounts, and group memberships for accounts, linked to the HelloID SCIM provider are imported. Accounts and memberships outside that scope are not returned by the SCIM API, or are filtered out by the permission import before being returned to HelloID.
 
 ## Getting started
 
@@ -137,7 +137,7 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 The same provider-linking approach is not available for user groups and their memberships, because groups are not exclusively managed by a SCIM provider. The connector therefore uses the REST API for group management and group membership imports. The REST API also has access to groups created in the Zenya UI.
 
-As a result, the REST API can return group memberships for users that are not returned by the SCIM API. HelloID cannot correlate those memberships because the corresponding accounts are absent from the account entitlement import. Only memberships for users visible through the configured SCIM provider can be correlated.
+As a result, the REST API can return group memberships for accounts outside the SCIM provider's scope. The permission import filters these out, since only accounts linked to the SCIM provider can be correlated.
 
 Group resources must also use the REST API, because the REST API used for permissions cannot modify groups created through SCIM.
 
