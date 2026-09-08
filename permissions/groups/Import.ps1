@@ -141,22 +141,10 @@ try {
 
             if (($importedGroup.user_group_type -ne "synced") -and ($importedGroup.user_group_type -ne "system")) {
 
-                # Make sure the displayName has a value
-                if ([string]::IsNullOrEmpty($importedGroup.name))
-                {                  
-                     $displayName = "Group - $($importedGroup.user_group_id)"
-                }
-                else {
-                    $displayName = "Group - $($importedGroup.name)"
-                    $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length))
-                }                           
-
                 $permission = @{
                     PermissionReference = @{
                         Id = $importedGroup.user_group_id
                     }
-                    Description         = "$($importedGroup.description)".Substring(0, [System.Math]::Min(100, $importedGroup.description.Length))
-                    DisplayName         =  $displayName
                     AccountReferences   = $null
                 }
 

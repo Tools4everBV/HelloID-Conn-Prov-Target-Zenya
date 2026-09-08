@@ -116,7 +116,7 @@ The field mapping can be imported by using the _fieldMapping.json_ file.
 
 ### Department Management
 
-- In Zenya, department names must be unique across the entire hierarchy. Matching is done based on the department name alone, so any duplicates, even in different parts of the structure, will cause issues.
+- In Zenya, department names must already exist and be unique across the entire hierarchy. Matching is done based on the department name alone, so any duplicates, even in different parts of the structure, will cause issues.
 
 ### Permission Management
 
