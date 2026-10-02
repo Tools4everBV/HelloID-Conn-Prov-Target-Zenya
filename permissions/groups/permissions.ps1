@@ -165,7 +165,7 @@ try {
             }
         }
         $skip += $getGroupsResponse.pagination.returned
-    } while (($skip -lt $getGroupsResponse.pagination.total) -OR ($getGroupsResponse.pagination.returned -lt 1))
+    } while (($skip -lt $getGroupsResponse.pagination.total) -AND ($getGroupsResponse.pagination.returned -gt 0))
 
 }
 catch {

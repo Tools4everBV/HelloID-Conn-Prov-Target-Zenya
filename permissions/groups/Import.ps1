@@ -108,8 +108,15 @@ function Get-AuthToken {
 #endregion
 
 try {
-    #region Create access token   
-   $splatApiToken = @{       
+    #region Create access tokens
+    $splatScimToken = @{
+        ClientId     = $actionContext.Configuration.ScimClientId
+        ClientSecret = $actionContext.Configuration.ScimClientSecret
+        TokenUri      = "$($ActionContext.Configuration.ScimBaseUrl)/oauth/token"
+    }
+    $scimToken = Get-AuthToken @splatScimToken
+
+    $splatApiToken = @{       
         clientId     = $actionContext.Configuration.ApiClientId
         clientSecret = $actionContext.Configuration.ApiClientSecret
         TokenUri      = "$($ActionContext.Configuration.ApiBaseUrl)/api/oauth/token"  
@@ -123,7 +130,34 @@ try {
         "Content-Type"  = "application/json;charset=utf-8"
         "X-Api-Version" = 5
     }   
-    $headers['Authorization'] = "$($apiToken.token_type) $($apiToken.access_token)"    
+    $headers['Authorization'] = "$($apiToken.token_type) $($apiToken.access_token)"
+
+    $scimHeaders = @{
+        "Accept"        = "application/json"
+        "Content-Type"  = "application/json;charset=utf-8"
+        "Authorization" = "$($scimToken.token_type) $($scimToken.access_token)"
+    }
+
+    # Query SCIM users once so REST memberships can be limited to correlatable accounts.
+    $actionMessage = "querying SCIM users"
+    $scimUserIds = @{}
+    $skip = 0
+    $take = 100
+    do {
+        $getUsersSplatParams = @{
+            Uri     = "$($actionContext.Configuration.ScimBaseUrl)/scim/users?startIndex=$($skip)&count=$($take)"
+            Method  = "GET"
+            Headers = $scimHeaders
+        }
+        $getUsersResponse = Invoke-RestMethod @getUsersSplatParams
+        foreach ($scimUser in @($getUsersResponse.Resources)) {
+            if ($null -ne $scimUser) {
+                $scimUserIds[[string]$scimUser.id] = $true
+            }
+        }
+        $skip += $take
+    } while ($scimUserIds.Count -lt $getUsersResponse.totalResults)
+    Write-Information "Queried SCIM users. Result count: $($scimUserIds.Count)"
 
     $skip = 0
     $take = 100     
@@ -139,35 +173,23 @@ try {
         $result = $getGroupsResponse.Data  
         foreach ($importedGroup in $result) {
 
-            if (($importedGroup.user_group_type -ne "synced") -and ($importedGroup.user_group_type -ne "system")) {
-
-                # Make sure the displayName has a value
-                if ([string]::IsNullOrEmpty($importedGroup.name))
-                {                  
-                     $displayName = "Group - $($importedGroup.user_group_id))"
-                }
-                else {
-                    $displayName = "Group - $($importedGroup.name))"
-                    $displayName = $displayName.substring(0, [System.Math]::Min(100, $displayName.Length))
-                }                           
+            if (($importedGroup.user_group_type -ne "synced") -and ($importedGroup.user_group_type -ne "system")) {               
 
                 $permission = @{
                     PermissionReference = @{
-                        Reference = $importedGroup.user_group_id
+                        Id = $importedGroup.user_group_id
                     }
-                    Description         = "$($importedGroup.description)"
-                    DisplayName         =  $displayName
                     AccountReferences   = $null
                 }
 
                 $GroupMembersSplatParams = @{
                     Uri     = "$($actionContext.Configuration.ApiBaseUrl)/api/user_groups/members?UserGroupIds=$($importedGroup.user_group_id)"
-                    Method  = "GET" 
-                    Headers = $headers            
+                    Method  = "GET"
+                    Headers = $headers
                 }
 
                 $importedGroupMembers = Invoke-RestMethod @GroupMembersSplatParams
-                     
+                $importedGroupMembers = @($importedGroupMembers | Where-Object { $scimUserIds.ContainsKey([string]$_.user_id) })                     
                 # The code below splits a list of permission-members into batches of <batchSize>
                 # Each batch is assigned to $permission.AccountReferences and the permission object will be returned to HelloID for each batch
                 # Ensure batching is based on the number of account references to prevent exceeding the maximum limit of 500 account references per batch
@@ -176,7 +198,7 @@ try {
                 for ($i = 0; $i -lt  $importedGroupMembers.Count; $i += $batchSize) {
                     $UserIdArray = [array] $importedGroupMembers[$i..([Math]::Min($i + $batchSize - 1, $importedGroupMembers.Count - 1))].user_id
                     $permission.AccountReferences = @() 
-                    foreach ($userId in $UserIdArray) {                       
+                    foreach ($userId in $UserIdArray) {
                         $permission.AccountReferences += @{
                             id = $userId
                         }
@@ -186,7 +208,7 @@ try {
             }           
         }        
         $skip += $getGroupsResponse.pagination.returned
-    } while (($skip -lt $getGroupsResponse.pagination.total) -OR ($getGroupsResponse.pagination.returned -lt 1))    
+    } while (($skip -lt $getGroupsResponse.pagination.total) -AND ($getGroupsResponse.pagination.returned -gt 0))
       
     
     Write-Information 'Zenya permission group entitlement import completed'
