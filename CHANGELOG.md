@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file. The format is based on [Keep a Changelog](https://keepachangelog.com), and this project adheres to [Semantic Versioning](https://semver.org).
 
+## [3.2.5] 2026-11-18
+### Fixed
+- Replaced the leftover `Generic-Scim` name with `Zenya` in the audit log messages of the grant, revoke and membership import scripts.
+- Improved `Resolve-ZenyaError`: error responses with a `title` but without a `detail` (such as REST API problem details) now result in a readable audit log message with the status code, instead of the raw JSON response.
+
 ## [3.2.4] 2026-09-02
 ### Fixed
 - Restored `Id` as the group permission identifier in the membership import, allowing imported memberships to correlate with permissions identified by `Identification.Id`.
