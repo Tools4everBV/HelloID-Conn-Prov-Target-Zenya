@@ -62,6 +62,12 @@ function Resolve-ZenyaError {
                     $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
+            elseif ($null -ne $errorObjectConverted.title) {
+                $httpErrorObj.FriendlyMessage = $errorObjectConverted.title
+                if ($null -ne $errorObjectConverted.status) {
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
+                }
+            }
             else {
                 $httpErrorObj.FriendlyMessage = $ErrorObject
             }
@@ -223,11 +229,11 @@ catch {
     if ($($ex.Exception.GetType().FullName -eq 'Microsoft.PowerShell.Commands.HttpResponseException') -or
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-ZenyaError -ErrorObject $ex
-        $auditLogMessage = "Could not revoke Generic-Scim permission. Error: $($errorObj.FriendlyMessage)"
+        $auditLogMessage = "Could not revoke Zenya permission. Error: $($errorObj.FriendlyMessage)"
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
     }
     else {
-        $auditLogMessage = "Could not revoke Generic-Scim permission. Error: $($_.Exception.Message)"
+        $auditLogMessage = "Could not revoke Zenya permission. Error: $($_.Exception.Message)"
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
     $outputContext.AuditLogs.Add([PSCustomObject]@{

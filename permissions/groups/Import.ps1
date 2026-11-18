@@ -61,6 +61,12 @@ function Resolve-ZenyaError {
                     $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
+            elseif ($null -ne $errorObjectConverted.title) {
+                $httpErrorObj.FriendlyMessage = $errorObjectConverted.title
+                if ($null -ne $errorObjectConverted.status) {
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
+                }
+            }
             else {
                 $httpErrorObj.FriendlyMessage = $ErrorObject
             }
@@ -219,9 +225,9 @@ try {
         $($ex.Exception.GetType().FullName -eq 'System.Net.WebException')) {
         $errorObj = Resolve-ZenyaError -ErrorObject $ex
         Write-Warning "Error at Line '$($errorObj.ScriptLineNumber)': $($errorObj.Line). Error: $($errorObj.ErrorDetails)"
-        Write-Error "Could not import Generic-Scim permission group entitlements. Error: $($errorObj.FriendlyMessage)"
+        Write-Error "Could not import Zenya permission group entitlements. Error: $($errorObj.FriendlyMessage)"
     } else {
         Write-Warning "Error at Line '$($ex.InvocationInfo.ScriptLineNumber)': $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
-        Write-Error "Could not import Generic-Scim permission group entitlements. Error: $($ex.Exception.Message)"
+        Write-Error "Could not import Zenya permission group entitlements. Error: $($ex.Exception.Message)"
     }
 }
