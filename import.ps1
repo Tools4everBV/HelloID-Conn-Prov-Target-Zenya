@@ -61,6 +61,12 @@ function Resolve-ZenyaError {
                     $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
                 }
             }
+            elseif ($null -ne $errorObjectConverted.title) {
+                $httpErrorObj.FriendlyMessage = $errorObjectConverted.title
+                if ($null -ne $errorObjectConverted.status) {
+                    $httpErrorObj.FriendlyMessage = $httpErrorObj.FriendlyMessage + " (" + $errorObjectConverted.status + ")"
+                }
+            }
             else {
                 $httpErrorObj.FriendlyMessage = $ErrorObject
             }
